@@ -53,6 +53,8 @@ export default function RegistrarVentaPage() {
   const [modalSinCai, setModalSinCai] = useState(false);
   const caiErrorMostradoRef = useRef(false); // ✅ NO causa re-render
   const [refreshCaiTrigger, setRefreshCaiTrigger] = useState(0);
+  const [resetPagoTrigger, setResetPagoTrigger] = useState(0);
+
 
 
   // Clientes
@@ -293,92 +295,94 @@ const consultarCai = async () => {
   const impuesto = (total / 1.15) * 0.15;
   const subtotal = total - impuesto;
 
-  const registrarVenta = async () => {
-    try {
-      if (carrito.length === 0) {
-        setFeedbackModal({
-          show: true,
-          success: false,
-          message: "⚠️ No hay productos en el carrito.",
-        });
-        return;
-      }
-
-      if (venta.metodo_pago === "efectivo" && venta.efectivo < total) {
-        setFeedbackModal({
-          show: true,
-          success: false,
-          message: "⚠️ El efectivo recibido no puede ser menor al total.",
-        });
-        return;
-      }
-
-      const productosPayload = carrito.map((item) => ({
-        producto_id: item.id,
-        cantidad: item.cantidad,
-      }));
-
-      const { data } = await api.post("/ventas", {
-        usuario_id: user.id,
-        productos: productosPayload,
-        cliente_nombre: venta.cliente_nombre,
-        cliente_rtn: venta.cliente_rtn,
-        cliente_direccion: venta.cliente_direccion,
-        metodo_pago: venta.metodo_pago,
-        efectivo: venta.efectivo,
-        cambio: venta.cambio,
-      });
-
-      setModal({
-        show: true,
-        type: "success",
-        title: " Venta registrada",
-        message: "La venta fue registrada exitosamente.",
-        dataRecibo: {
-          numeroFactura: data.numeroFactura,
-          carrito,
-          subtotal,
-          impuesto,
-          total,
-          user,
-          cai: cai || {},
-          cliente_nombre: venta.cliente_nombre,
-          cliente_rtn: venta.cliente_rtn,
-          cliente_direccion: venta.cliente_direccion,
-          metodoPago: venta.metodo_pago,
-          efectivo: venta.efectivo,
-          cambio: venta.cambio,
-        },
-      });
-
-      generarReciboPDF({
-        numeroFactura: data.numeroFactura,
-        carrito,
-        subtotal,
-        impuesto,
-        total,
-        user,
-        cai: cai || {},
-        cliente_nombre: venta.cliente_nombre,
-        cliente_rtn: venta.cliente_rtn,
-        cliente_direccion: venta.cliente_direccion,
-        metodoPago: venta.metodo_pago,
-        efectivo: venta.efectivo,
-        cambio: venta.cambio,
-      });
-
-      setRefreshCaiTrigger((prev) => prev + 1); // 🔁 Forzar refresco del CAI
-
-      // Limpiar carrito, formulario, etc.
-    } catch (error) {
-      console.error("❌ Error al registrar venta:", error);
+const registrarVenta = async () => {
+  try {
+    if (carrito.length === 0) {
       setFeedbackModal({
         show: true,
         success: false,
-        message: "❌ Error al registrar la venta.",
+        message: "⚠️ No hay productos para registrar la venta.",
       });
+      return;
     }
-  };
+
+    if (venta.metodo_pago === "efectivo" && venta.efectivo < total) {
+      setFeedbackModal({
+        show: true,
+        success: false,
+        message: "⚠️ El efectivo recibido no puede ser menor al total.",
+      });
+      return;
+    }
+
+    const productosPayload = carrito.map((item) => ({
+      producto_id: item.id,
+      cantidad: item.cantidad,
+    }));
+
+    const { data } = await api.post("/ventas", {
+      usuario_id: user.id,
+      productos: productosPayload,
+      cliente_nombre: venta.cliente_nombre,
+      cliente_rtn: venta.cliente_rtn,
+      cliente_direccion: venta.cliente_direccion,
+      metodo_pago: venta.metodo_pago,
+      efectivo: venta.efectivo,
+      cambio: venta.cambio,
+    });
+
+    const dataRecibo = {
+      numeroFactura: data.numeroFactura,
+      carrito,
+      subtotal,
+      impuesto,
+      total,
+      user,
+      cai: cai || {},
+      cliente_nombre: venta.cliente_nombre,
+      cliente_rtn: venta.cliente_rtn,
+      cliente_direccion: venta.cliente_direccion,
+      metodoPago: venta.metodo_pago,
+      efectivo: venta.efectivo,
+      cambio: venta.cambio,
+    };
+
+    setModal({
+      show: true,
+      type: "success",
+      title: "Venta registrada",
+      message: "La venta fue registrada exitosamente.",
+      dataRecibo,
+    });
+
+   
+
+    // 🔁 Refrescar visual del stock de facturas disponibles
+    setRefreshCaiTrigger((prev) => prev + 1);
+
+    // ✅ Limpiar todos los estados
+    setCarrito([]);
+    setVenta({
+      metodo_pago: "efectivo",
+      efectivo: 0,
+      cambio: 0,
+      cliente_nombre: "",
+      cliente_rtn: "",
+      cliente_direccion: "",
+    });
+    setBuscar("");
+    setDatosPago({});
+    setFormularioCliente({ nombre: "", rtn: "", direccion: "" });
+    setResetPagoTrigger((prev) => prev + 1); // <-- Este es el correcto
+  } catch (error) {
+    console.error("❌ Error al registrar venta:", error);
+    setFeedbackModal({
+      show: true,
+      success: false,
+      message: "❌ Error al registrar la venta.",
+    });
+  }
+};
 
  
   // =======================
@@ -654,7 +658,11 @@ const consultarCai = async () => {
 
       <div className="row mt-3">
         <div className="col-md-6 mb-3">
-          <MetodosPagos total={total} onCambioCalculado={handleCambio} />
+          <MetodosPagos
+            total={total}
+            onCambioCalculado={handleCambio}
+            resetTrigger={resetPagoTrigger}
+          />
         </div>
         <div className="col-md-6 d-flex flex-column justify-content-between">
           <div className="bg-light p-3 rounded shadow-sm h-100">
@@ -810,33 +818,47 @@ const consultarCai = async () => {
       )}
       {feedbackModal.show && (
         <Modal
-          show={feedbackModal.show}
-          onHide={() => setFeedbackModal({ ...feedbackModal, show: false })}
+          show={modal.show}
+          onHide={() => setModal({ ...modal, show: false })}
           centered
         >
-          <Modal.Header closeButton>
-            <Modal.Title className="d-flex align-items-center">
-              <BsCheckCircleFill className="text-success me-2 fs-4" />
-              <span className="text-success">Venta registrada</span>
-            </Modal.Title>
-          </Modal.Header>
-          <Modal.Body className="text-center">
-            <p>{feedbackModal.message}</p>
-            {modal.dataRecibo && (
-              <div className="d-flex justify-content-center gap-2 mt-3">
-                <Button variant="primary" onClick={imprimirRecibo}>
+          <Modal.Body className="text-center py-4">
+            {modal.type === "success" ? (
+              <BsCheckCircleFill size={64} color="#198754" className="mb-3" />
+            ) : (
+              <BsExclamationTriangleFill
+                size={64}
+                color="#dc3545"
+                className="mb-3"
+              />
+            )}
+
+            <h5
+              className={`mb-2 fw-bold ${
+                modal.type === "success" ? "text-success" : "text-danger"
+              }`}
+            >
+              {modal.title}
+            </h5>
+
+            <div className="mb-3 text-muted">{modal.message}</div>
+
+            <div className="d-flex justify-content-center align-items-center flex-wrap gap-3">
+              {modal.type === "success" && (
+                <Button
+                  variant="primary"
+                  onClick={() => generarReciboPDF(modal.dataRecibo)}
+                >
                   🧾 Imprimir Recibo
                 </Button>
-                <Button
-                  variant="secondary"
-                  onClick={() =>
-                    setFeedbackModal({ ...feedbackModal, show: false })
-                  }
-                >
-                  Cerrar
-                </Button>
-              </div>
-            )}
+              )}
+              <Button
+                variant="secondary"
+                onClick={() => setModal({ ...modal, show: false })}
+              >
+                Cerrar
+              </Button>
+            </div>
           </Modal.Body>
         </Modal>
       )}

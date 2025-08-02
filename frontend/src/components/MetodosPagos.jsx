@@ -1,12 +1,16 @@
 import { useState, useEffect } from "react";
 import { Form } from "react-bootstrap";
 
-export default function MetodosPagos({ total, onCambioCalculado }) {
+export default function MetodosPagos({
+  total,
+  onCambioCalculado,
+  resetTrigger,
+}) {
   const [metodo, setMetodo] = useState("efectivo");
   const [efectivo, setEfectivo] = useState("");
   const [cambio, setCambio] = useState(0);
 
-  // Recalcula el cambio cada vez que cambian estos valores
+  // 🔁 Recalcula el cambio cada vez que cambian estos valores
   useEffect(() => {
     const pago = parseFloat(efectivo) || 0;
     const cambioCalculado =
@@ -18,12 +22,19 @@ export default function MetodosPagos({ total, onCambioCalculado }) {
       efectivo: pago,
       cambio: cambioCalculado,
     });
-  }, [efectivo, metodo, total, onCambioCalculado]);
+  }, [efectivo, metodo, total]);
+
+  // 🔄 Reset cuando cambie la prop resetTrigger
+  useEffect(() => {
+    setMetodo("efectivo");
+    setEfectivo("");
+    setCambio(0);
+  }, [resetTrigger]);
 
   return (
     <div
       className="border p-3 rounded with-shadow"
-      style={{ width: "60%", backgroundColor: "#b8bfbcff" }}
+      style={{ width: "60%", backgroundColor: "#d4d6d5ff" }}
     >
       <h6>Método de Pago</h6>
       <Form.Group>
