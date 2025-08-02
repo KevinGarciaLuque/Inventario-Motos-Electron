@@ -21,7 +21,10 @@ export default function MetodosPagos({ total, onCambioCalculado }) {
   }, [efectivo, metodo, total, onCambioCalculado]);
 
   return (
-    <div className="border p-3 rounded">
+    <div
+      className="border p-3 rounded with-shadow"
+      style={{ width: "60%", backgroundColor: "#b8bfbcff" }}
+    >
       <h6>Método de Pago</h6>
       <Form.Group>
         <Form.Select value={metodo} onChange={(e) => setMetodo(e.target.value)}>

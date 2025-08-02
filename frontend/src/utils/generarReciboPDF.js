@@ -20,6 +20,14 @@ const generarReciboPDF = ({
   const alturaTotal = 150 + carrito.length * 10 + 100;
   const totalNumerico = Number(total || 0);
 
+  const formatoLempiras = (valor) =>
+    `L ${Number(valor).toLocaleString("es-HN", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+
+
+
   const doc = new jsPDF({
     orientation: "portrait",
     unit: "mm",
@@ -115,37 +123,45 @@ const generarReciboPDF = ({
     doc.line(10, posY, 70, posY);
     posY += 5;
 
-    doc.setFontSize(8);
-    doc.text("Sub Total Exonerado:", margenIzq, posY);
-    doc.text(`L 0.00`, margenDer, posY, { align: "right" });
-    posY += 4;
-    doc.text("Sub Total Exento:", margenIzq, posY);
-    doc.text(`L 0.00`, margenDer, posY, { align: "right" });
-    posY += 4;
-    doc.text("Sub Total Gravado 15%:", margenIzq, posY);
-    doc.text(`L ${subtotal.toFixed(2)}`, margenDer, posY, { align: "right" });
-    posY += 4;
-    doc.text("Sub Total Gravado 18%:", margenIzq, posY);
-    doc.text(`L 0.00`, margenDer, posY, { align: "right" });
-    posY += 4;
-    doc.text("Descuentos/Rebajas:", margenIzq, posY);
-    doc.text(`L 0.00`, margenDer, posY, { align: "right" });
-    posY += 4;
-    doc.text("Sub Total:", margenIzq, posY);
-    doc.text(`L ${subtotal.toFixed(2)}`, margenDer, posY, { align: "right" });
-    posY += 4;
-    doc.text("15% ISV:", margenIzq, posY);
-    doc.text(`L ${impuesto.toFixed(2)}`, margenDer, posY, { align: "right" });
-    posY += 4;
-    doc.text("18% ISV:", margenIzq, posY);
-    doc.text(`L 0.00`, margenDer, posY, { align: "right" });
-    posY += 6;
+   doc.setFontSize(8);
+   doc.text("Sub Total Exonerado:", margenIzq, posY);
+   doc.text(formatoLempiras(0), margenDer, posY, { align: "right" });
+   posY += 4;
 
-    doc.setFont("helvetica", "bold").setFontSize(10);
-    doc.text("TOTAL A PAGAR:", margenIzq, posY);
-    doc.text(`L ${totalNumerico.toFixed(2)}`, margenDer, posY, {
-      align: "right",
-    });
+   doc.text("Sub Total Exento:", margenIzq, posY);
+   doc.text(formatoLempiras(0), margenDer, posY, { align: "right" });
+   posY += 4;
+
+   doc.text("Sub Total Gravado 15%:", margenIzq, posY);
+   doc.text(formatoLempiras(subtotal), margenDer, posY, { align: "right" });
+   posY += 4;
+
+   doc.text("Sub Total Gravado 18%:", margenIzq, posY);
+   doc.text(formatoLempiras(0), margenDer, posY, { align: "right" });
+   posY += 4;
+
+   doc.text("Descuentos/Rebajas:", margenIzq, posY);
+   doc.text(formatoLempiras(0), margenDer, posY, { align: "right" });
+   posY += 4;
+
+   doc.text("Sub Total:", margenIzq, posY);
+   doc.text(formatoLempiras(subtotal), margenDer, posY, { align: "right" });
+   posY += 4;
+
+   doc.text("15% ISV:", margenIzq, posY);
+   doc.text(formatoLempiras(impuesto), margenDer, posY, { align: "right" });
+   posY += 4;
+
+   doc.text("18% ISV:", margenIzq, posY);
+   doc.text(formatoLempiras(0), margenDer, posY, { align: "right" });
+   posY += 6;
+
+   doc.setFont("helvetica", "bold").setFontSize(10);
+   doc.text("TOTAL A PAGAR:", margenIzq, posY);
+   doc.text(formatoLempiras(totalNumerico), margenDer, posY, {
+     align: "right",
+   });
+
     posY += 6;
 
     doc.setFont("helvetica", "normal").setFontSize(8);
@@ -174,12 +190,17 @@ const generarReciboPDF = ({
       doc.text("Pago realizado con tarjeta", margenIzq, posY);
       posY += 4;
     }
+      posY += 4;
+      doc.setFont("helvetica", "italic");
 
-    doc.setFont("helvetica", "italic");
-    doc.text("Su cantidad a pagar es de:", 10, posY);
-    posY += 4;
-    doc.text(`"${convertirNumeroALetras(totalNumerico)} Exactos"`, 10, posY);
-    posY += 8;
+      // Centrado usando X = 40
+      doc.text("Su cantidad a pagar es de:", 40, posY, { align: "center" });
+      posY += 4;
+      doc.text(`"${convertirNumeroALetras(totalNumerico)} Exactos"`, 40, posY, {
+        align: "center",
+      });
+      posY += 8;
+
 
     doc.setFont("helvetica", "bold");
     doc.text("*** GRACIAS POR SU COMPRA ***", 40, posY, { align: "center" });

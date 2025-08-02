@@ -1,4 +1,8 @@
 import { useEffect, useRef, useState } from "react";
+import { Alert } from "react-bootstrap";
+import { FaExclamationTriangle } from "react-icons/fa";
+
+
 import {
   Button,
   FormControl,
@@ -23,6 +27,7 @@ import api from "../../api/axios";
 import { useUser } from "../context/UserContext";
 import generarReciboPDF from "../utils/generarReciboPDF";
 import MetodosPagos from "../components/MetodosPagos";
+import CardCaiDisponible from "../components/CardCaiDisponible";
 
 const API_URL = "http://localhost:3000";
 const getImgSrc = (imagen) => {
@@ -44,6 +49,10 @@ export default function RegistrarVentaPage() {
   const [usarRTN, setUsarRTN] = useState(false);
   const bufferRef = useRef("");
   const [datosPago, setDatosPago] = useState({});
+  const yaMostroModalRef = useRef(false); // ✅ No causa render como useState
+  const [modalSinCai, setModalSinCai] = useState(false);
+  const caiErrorMostradoRef = useRef(false); // ✅ NO causa re-render
+  const [refreshCaiTrigger, setRefreshCaiTrigger] = useState(0);
 
 
   // Clientes
@@ -66,7 +75,6 @@ export default function RegistrarVentaPage() {
     message: "",
   });
 
-
   // Modal agregar cliente rápido
   const [modalCliente, setModalCliente] = useState(false);
   const [formularioCliente, setFormularioCliente] = useState({
@@ -77,31 +85,37 @@ export default function RegistrarVentaPage() {
   const [editandoCliente, setEditandoCliente] = useState(false);
 
   // Datos del cliente para factura
-const [venta, setVenta] = useState({
-  metodo_pago: "efectivo",
-  efectivo: 0,
-  cambio: 0,
-  cliente_nombre: "",
-  cliente_rtn: "",
-  cliente_direccion: "",
-});
+  const [venta, setVenta] = useState({
+    metodo_pago: "efectivo",
+    efectivo: 0,
+    cambio: 0,
+    cliente_nombre: "",
+    cliente_rtn: "",
+    cliente_direccion: "",
+  });
 
 const handleCambio = ({ metodo, efectivo, cambio }) => {
-  setVenta((prev) => ({
-    ...prev,
-    metodo_pago: metodo,
-    efectivo,
-    cambio,
-  }));
+  setVenta((prev) => {
+    if (
+      prev.metodo_pago === metodo &&
+      prev.efectivo === efectivo &&
+      prev.cambio === cambio
+    ) {
+      return prev; // Evita re-render innecesario
+    }
+    return {
+      ...prev,
+      metodo_pago: metodo,
+      efectivo,
+      cambio,
+    };
+  });
 };
+
 
   const scannerTimeout = useRef(null);
 
-  useEffect(() => {
-    cargarProductos();
-    consultarCai();
-  }, []);
-
+  // ✅ Este se ejecuta solo cuando cambia el switch "usarRTN"
   useEffect(() => {
     if (usarRTN) {
       cargarClientes();
@@ -142,10 +156,27 @@ const handleCambio = ({ metodo, efectivo, cambio }) => {
     setProductos(res.data);
   };
 
-  const consultarCai = async () => {
+const consultarCai = async () => {
+  try {
     const res = await api.get("/cai/activo");
+    console.log("✅ CAI encontrado:", res.data);
     setCai(res.data);
-  };
+  } catch (error) {
+    console.error("❌ Error al consultar CAI:", error.message);
+
+    if (!caiErrorMostradoRef.current) {
+      setModalSinCai(true); // solo una vez
+      caiErrorMostradoRef.current = true;
+    }
+
+    setCai(null);
+  }
+};
+
+  useEffect(() => {
+    consultarCai();
+    cargarProductos();
+  }, []);
 
   // =======================
   // BUSCAR Y AGREGAR PRODUCTOS
@@ -254,103 +285,103 @@ const handleCambio = ({ metodo, efectivo, cambio }) => {
   // VENTA Y FACTURA
   // =======================
   const total = carrito.reduce(
-  (acc, item) => acc + item.cantidad * parseFloat(item.precio),0
+    (acc, item) => acc + item.cantidad * parseFloat(item.precio),
+    0
   );
 
-// Calcula impuesto incluido (ya contenido dentro del precio)
+  // Calcula impuesto incluido (ya contenido dentro del precio)
   const impuesto = (total / 1.15) * 0.15;
   const subtotal = total - impuesto;
 
-const registrarVenta = async () => {
-  try {
-    if (carrito.length === 0) {
+  const registrarVenta = async () => {
+    try {
+      if (carrito.length === 0) {
+        setFeedbackModal({
+          show: true,
+          success: false,
+          message: "⚠️ No hay productos en el carrito.",
+        });
+        return;
+      }
+
+      if (venta.metodo_pago === "efectivo" && venta.efectivo < total) {
+        setFeedbackModal({
+          show: true,
+          success: false,
+          message: "⚠️ El efectivo recibido no puede ser menor al total.",
+        });
+        return;
+      }
+
+      const productosPayload = carrito.map((item) => ({
+        producto_id: item.id,
+        cantidad: item.cantidad,
+      }));
+
+      const { data } = await api.post("/ventas", {
+        usuario_id: user.id,
+        productos: productosPayload,
+        cliente_nombre: venta.cliente_nombre,
+        cliente_rtn: venta.cliente_rtn,
+        cliente_direccion: venta.cliente_direccion,
+        metodo_pago: venta.metodo_pago,
+        efectivo: venta.efectivo,
+        cambio: venta.cambio,
+      });
+
+      setModal({
+        show: true,
+        type: "success",
+        title: " Venta registrada",
+        message: "La venta fue registrada exitosamente.",
+        dataRecibo: {
+          numeroFactura: data.numeroFactura,
+          carrito,
+          subtotal,
+          impuesto,
+          total,
+          user,
+          cai: cai || {},
+          cliente_nombre: venta.cliente_nombre,
+          cliente_rtn: venta.cliente_rtn,
+          cliente_direccion: venta.cliente_direccion,
+          metodoPago: venta.metodo_pago,
+          efectivo: venta.efectivo,
+          cambio: venta.cambio,
+        },
+      });
+
+      generarReciboPDF({
+        numeroFactura: data.numeroFactura,
+        carrito,
+        subtotal,
+        impuesto,
+        total,
+        user,
+        cai: cai || {},
+        cliente_nombre: venta.cliente_nombre,
+        cliente_rtn: venta.cliente_rtn,
+        cliente_direccion: venta.cliente_direccion,
+        metodoPago: venta.metodo_pago,
+        efectivo: venta.efectivo,
+        cambio: venta.cambio,
+      });
+
+      setRefreshCaiTrigger((prev) => prev + 1); // 🔁 Forzar refresco del CAI
+
+      // Limpiar carrito, formulario, etc.
+    } catch (error) {
+      console.error("❌ Error al registrar venta:", error);
       setFeedbackModal({
         show: true,
         success: false,
-        message: "⚠️ No hay productos en el carrito.",
+        message: "❌ Error al registrar la venta.",
       });
-      return;
     }
+  };
 
-    if (venta.metodo_pago === "efectivo" && venta.efectivo < total) {
-      setFeedbackModal({
-        show: true,
-        success: false,
-        message: "⚠️ El efectivo recibido no puede ser menor al total.",
-      });
-      return;
-    }
-
-    const productosPayload = carrito.map((item) => ({
-      producto_id: item.id,
-      cantidad: item.cantidad,
-    }));
-
-    const { data } = await api.post("/ventas", {
-      usuario_id: user.id,
-      productos: productosPayload,
-      cliente_nombre: venta.cliente_nombre,
-      cliente_rtn: venta.cliente_rtn,
-      cliente_direccion: venta.cliente_direccion,
-      metodo_pago: venta.metodo_pago,
-      efectivo: venta.efectivo,
-      cambio: venta.cambio,
-    });
-
-   generarReciboPDF({
-     numeroFactura: data.numeroFactura,
-     carrito,
-     subtotal,
-     impuesto,
-     total,
-     user,
-     cai: cai || {},
-     cliente_nombre: venta.cliente_nombre,
-     cliente_rtn: venta.cliente_rtn,
-     cliente_direccion: venta.cliente_direccion,
-     metodoPago: venta.metodo_pago,
-     efectivo: venta.efectivo,
-     cambio: venta.cambio,
-   });
-
-  
-
-   setModal({
-     show: true,
-     type: "success",
-     title: " Venta registrada",
-     message: "La venta fue registrada exitosamente.",
-     dataRecibo: {
-       numeroFactura: data.numeroFactura,
-       carrito,
-       subtotal,
-       impuesto,
-       total,
-       user,
-       cai: cai || {},
-       cliente_nombre: venta.cliente_nombre,
-       cliente_rtn: venta.cliente_rtn,
-       cliente_direccion: venta.cliente_direccion,
-       metodoPago: venta.metodo_pago,
-       efectivo: venta.efectivo,
-       cambio: venta.cambio,
-     },
-   });
-
-
-    // Limpiar carrito, formulario, etc.
-  } catch (error) {
-    console.error("❌ Error al registrar venta:", error);
-    setFeedbackModal({
-      show: true,
-      success: false,
-      message: "❌ Error al registrar la venta.",
-    });
-  }
-};
-
-
-
+ 
+  // =======================
   const mostrarModal = ({ type, title, message }) =>
     setModal({ show: true, type, title, message, dataRecibo: null });
 
@@ -366,8 +397,7 @@ const registrarVenta = async () => {
     }
   };
 
-
-  // =======================
+  // ==========================================================================================================================
   // RENDER
   // =======================
   return (
@@ -375,24 +405,33 @@ const registrarVenta = async () => {
       <h2 className="mb-4 text-center">
         <FaBoxOpen className="text-primary me-2" /> Módulo de Ventas
       </h2>
+      <div className="d-flex align-items-center justify-content-between flex-wrap mb-3">
+        {/* Switch: Usar cliente con RTN */}
+        <FormCheck
+          type="switch"
+          id="switch-rt"
+          label={
+            <span style={{ fontSize: "1.rem", fontWeight: "400" }}>
+              Usar cliente con RTN
+            </span>
+          }
+          checked={usarRTN}
+          onChange={() => setUsarRTN(!usarRTN)}
+          style={{
+            fontSize: "2.0rem",
+            padding: "0.5rem",
+            marginBottom: "1rem",
+            marginLeft: "4rem",
+          }}
+        />
 
-      <FormCheck
-        type="switch"
-        id="switch-rt"
-        label={
-          <span style={{ fontSize: "1.rem", fontWeight: "400" }}>
-            Usar cliente con RTN
-          </span>
-        }
-        checked={usarRTN}
-        onChange={() => setUsarRTN(!usarRTN)}
-        style={{
-          fontSize: "2.0rem",
-          padding: "0.5rem",
-          marginBottom: "1rem",
-          marginLeft: "4rem",
-        }}
-      />
+        {/* Card del CAI: alineado a la derecha */}
+        <div style={{ flexShrink: 0 }}>
+          <CardCaiDisponible refreshTrigger={refreshCaiTrigger} />
+        </div>
+      </div>
+
+      {/* ============================================== STOCK DISponible ========== */}
 
       {/* ========== SECCIÓN CLIENTES ========== */}
       {usarRTN && (
@@ -612,15 +651,34 @@ const registrarVenta = async () => {
           </tbody>
         </Table>
       </div>
-      <MetodosPagos total={total} onCambioCalculado={handleCambio} />
 
-      <div className="text-end">
-        <div>Subtotal: {subtotal.toFixed(2)} Lps</div>
-        <div>ISV 15%: {impuesto.toFixed(2)} Lps</div>
-        <h4>Total: {total.toFixed(2)} Lps</h4>
-        <Button variant="success" size="lg" onClick={registrarVenta}>
-          <FaCashRegister className="me-2" /> Registrar Venta
-        </Button>
+      <div className="row mt-3">
+        <div className="col-md-6 mb-3">
+          <MetodosPagos total={total} onCambioCalculado={handleCambio} />
+        </div>
+        <div className="col-md-6 d-flex flex-column justify-content-between">
+          <div className="bg-light p-3 rounded shadow-sm h-100">
+            <div className="mb-2">
+              <strong>Subtotal:</strong> L {subtotal.toFixed(2)}
+            </div>
+            <div className="mb-2">
+              <strong>ISV 15%:</strong> L {impuesto.toFixed(2)}
+            </div>
+            <div className="mb-3">
+              <h5 className="m-0">
+                <strong>Total:</strong> L {total.toFixed(2)}
+              </h5>
+            </div>
+            <Button
+              variant="success"
+              size="lg"
+              onClick={registrarVenta}
+              className="w-100"
+            >
+              <FaCashRegister className="me-2" /> Registrar Venta
+            </Button>
+          </div>
+        </div>
       </div>
 
       {/* ===== MODAL FACTURA ===== */}
@@ -722,6 +780,23 @@ const registrarVenta = async () => {
           </Button>
         </Modal.Footer>
       </Modal>
+      <Modal show={modalSinCai} onHide={() => setModalSinCai(false)} centered>
+        <Modal.Body className="text-center py-4">
+          <BsExclamationTriangleFill
+            size={64}
+            color="#dc3545"
+            className="mb-3"
+          />
+          <h5 className="text-danger fw-bold mb-3">No hay CAI activo</h5>
+          <p className="text-muted">
+            No se puede registrar la venta porque no hay un CAI activo en el
+            sistema.
+          </p>
+          <Button variant="secondary" onClick={() => setModalSinCai(false)}>
+            Cerrar
+          </Button>
+        </Modal.Body>
+      </Modal>
 
       {toast.show && (
         <div
@@ -735,18 +810,18 @@ const registrarVenta = async () => {
       )}
       {feedbackModal.show && (
         <Modal
-          show={modal.show}
-          onHide={() => setModal({ ...modal, show: false })}
+          show={feedbackModal.show}
+          onHide={() => setFeedbackModal({ ...feedbackModal, show: false })}
           centered
         >
           <Modal.Header closeButton>
             <Modal.Title className="d-flex align-items-center">
               <BsCheckCircleFill className="text-success me-2 fs-4" />
-              <span className="text-success">{modal.title}</span>
+              <span className="text-success">Venta registrada</span>
             </Modal.Title>
           </Modal.Header>
           <Modal.Body className="text-center">
-            <p>{modal.message}</p>
+            <p>{feedbackModal.message}</p>
             {modal.dataRecibo && (
               <div className="d-flex justify-content-center gap-2 mt-3">
                 <Button variant="primary" onClick={imprimirRecibo}>
@@ -754,7 +829,9 @@ const registrarVenta = async () => {
                 </Button>
                 <Button
                   variant="secondary"
-                  onClick={() => setModal({ ...modal, show: false })}
+                  onClick={() =>
+                    setFeedbackModal({ ...feedbackModal, show: false })
+                  }
                 >
                   Cerrar
                 </Button>

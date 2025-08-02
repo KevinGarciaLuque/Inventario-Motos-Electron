@@ -1,0 +1,11 @@
+| Campo                  | Valor de ejemplo                       |
+| ---------------------- | -------------------------------------- |
+| **Código CAI**         | `B5678D-21F59A-40A1-BBC5-19D7FC758F1A` |
+| **Sucursal**           | `001`                                  |
+| **Punto Emisión**      | `001`                                  |
+| **Tipo Documento**     | `01` (Factura)                         |
+| **Inicio Rango**       | `1`                                    |
+| **Fin Rango**          | `1000`                                 |
+| **Correlativo**        | `0`                                    |
+| **Fecha Autorización** | `2025-08-02`                           |
+| **Fecha Límite**       | `2026-02-02`                           |
