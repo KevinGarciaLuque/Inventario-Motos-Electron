@@ -1,0 +1,23 @@
+/* Sticky headers en todos los dispositivos */
+.sticky-header thead th,
+.table-responsive thead th,
+.table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 102;
+  background: #fff; /* fondo blanco para cubrir */
+}
+
+/* Solo si tu navbar es fixed y tiene altura diferente en móviles */
+@media (max-width: 991.98px) {
+  .sticky-header thead th {
+    top: 0 !important;
+  }
+}
+
+.sticky-header thead th {
+  position: sticky;
+  top: 0; /* o 64px si hay navbar fijo en móviles */
+  z-index: 10;
+  background-color: #fff;
+}

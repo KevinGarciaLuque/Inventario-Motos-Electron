@@ -1,0 +1,25 @@
+directories:
+  output: dist-electron
+  buildResources: build
+appId: Pixel.Digital.Inventario
+productName: Inventario
+files:
+  - filter:
+      - icono-moto-electron.ico
+      - main.js
+      - frontend/dist/**/*
+  - from: backend/
+    to: backend/
+    filter:
+      - '**/*'
+asarUnpack:
+  - backend/inventario-backend.exe
+win:
+  icon: icono-moto-electron.ico
+  target: nsis
+nsis:
+  oneClick: false
+  perMachine: true
+  allowElevation: true
+  allowToChangeInstallationDirectory: true
+electronVersion: 29.4.6

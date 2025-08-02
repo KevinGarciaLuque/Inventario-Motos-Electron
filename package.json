@@ -1,0 +1,47 @@
+{
+  "name": "inventario-app",
+  "version": "1.1.1",
+  "description": "Sistema de Inventario de Escritorio",
+  "main": "main.js",
+  "author": "Pixel Digital - Kevin Garcia",
+  "license": "ISC",
+  "scripts": {
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "^29.0.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "Pixel.Digital.Inventario",
+    "productName": "Inventario",
+    "files": [
+      "main.js",
+      "frontend/dist/**/*",
+      {
+        "from": "backend/",
+        "to": "backend/",
+        "filter": [
+          "**/*"
+        ]
+      },
+      "icono-moto-electron.ico"
+    ],
+    "asarUnpack": [
+      "backend/inventario-backend.exe"
+    ],
+    "directories": {
+      "output": "dist-electron"
+    },
+    "win": {
+      "icon": "icono-moto-electron.ico",
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": true,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}
