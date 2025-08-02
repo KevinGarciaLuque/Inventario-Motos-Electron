@@ -52,3 +52,8 @@ Thumbs.db
 # Archivos de caché y temporales de npm/yarn/pnpm
 .pnpm-store/
 .cache/
+
+# Imágenes subidas por usuarios
+uploads/
+backend/uploads/
+
