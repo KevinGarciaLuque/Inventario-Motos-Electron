@@ -1,0 +1,90 @@
+
+📦 GUÍA DE EMPAQUETADO DEL SISTEMA DE INVENTARIO CON BACKEND, FRONTEND Y ELECTRON
+
+===========================================
+1️⃣ BACKEND (Node.js + Express + MySQL)
+===========================================
+
+✅ Objetivo: Compilar el backend a un .exe independiente usando `pkg` y colocarlo fuera del paquete de Electron.
+
+🧩 Pasos:
+1. Asegúrate de tener instalado `pkg`:
+   npm install -g pkg
+
+2. Agrega en tu `package.json` del backend (si no está):
+   "bin": "server.js",
+
+3. Compila el backend:
+   pkg . --targets node18-win-x64 --output inventario-backend.exe
+
+4. Crea una carpeta en el disco C:
+   C:\Inventario\backend
+
+5. Copia el ejecutable generado:
+   inventario-backend.exe → C:\Inventario\backend\inventario-backend.exe
+
+
+===========================================
+2️⃣ FRONTEND (React + Vite)
+===========================================
+
+✅ Objetivo: Compilar el frontend para producción.
+
+🧩 Pasos:
+1. Entra al proyecto React:
+   cd frontend
+
+2. Ejecuta:
+   npm run build
+
+3. Se generará la carpeta:
+   frontend/dist
+
+
+===========================================
+3️⃣ ELECTRON (Empaquetado de escritorio)
+===========================================
+
+✅ Objetivo: Crear un instalador .exe con Electron Builder, sin incluir el backend dentro del paquete.
+
+🧩 Configuración del archivo `main.js`:
+- Llama al backend desde una ruta fija:
+
+  const backendExePath = "C:\\Inventario\\backend\\inventario-backend.exe";
+
+🧩 Configuración del archivo `package.json`:
+
+  "build": {
+    "files": [
+      "main.js",
+      "frontend/dist/**/*",
+      "icono-moto-electron.ico"
+    ],
+    "extraResources": [],
+    "win": {
+      "icon": "icono-moto-electron.ico",
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": true,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+
+🧩 Comando para empacar:
+   npx electron-builder
+
+✔ Resultado:
+   - Instalador final: dist-electron/Inventario Setup.exe
+   - El backend se ejecuta desde C:\Inventario\backend\
+
+
+===========================================
+✅ RECOMENDACIÓN FINAL
+===========================================
+- No metas el backend dentro del empaquetado de Electron.
+- Usa una ruta fija en el disco para evitar problemas de permisos.
+- Puedes crear un .bat para iniciar el backend manualmente si lo deseas.
+- pega la carpeta que esta en la ubicacion del acceso directo en la Raiz del disco C

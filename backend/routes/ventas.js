@@ -7,9 +7,9 @@ router.post("/", async (req, res) => {
   const {
     productos,
     usuario_id,
-    cliente_nombre,
-    cliente_rtn,
-    cliente_direccion,
+    cliente_nombre = "",
+    cliente_rtn = "",
+    cliente_direccion = "",
     metodo_pago = "efectivo",
     efectivo = 0,
     cambio = 0,
@@ -23,11 +23,17 @@ router.post("/", async (req, res) => {
   await connection.beginTransaction();
 
   try {
+    console.log("📦 Venta recibida:", req.body);
+
     let total = 0;
     const detalleVenta = [];
 
     // Validar stock y calcular totales
     for (const item of productos) {
+      if (!item.producto_id || !item.cantidad) {
+        throw new Error("Producto inválido en el carrito.");
+      }
+
       const [productoResult] = await connection.query(
         "SELECT precio, stock FROM productos WHERE id = ?",
         [item.producto_id]
@@ -61,7 +67,10 @@ router.post("/", async (req, res) => {
 
     // Insertar venta
     const [ventaResult] = await connection.query(
-      "INSERT INTO ventas (total, impuesto, total_con_impuesto, usuario_id, metodo_pago, efectivo, cambio) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      `INSERT INTO ventas (
+        total, impuesto, total_con_impuesto,
+        usuario_id, metodo_pago, efectivo, cambio
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [
         total,
         impuesto,
@@ -75,11 +84,12 @@ router.post("/", async (req, res) => {
 
     const venta_id = ventaResult.insertId;
 
-    // Insertar detalle
+    // Insertar detalle de la venta y actualizar stock
     for (const detalle of detalleVenta) {
       await connection.query(
-        `INSERT INTO detalle_ventas (venta_id, producto_id, cantidad, precio_unitario, subtotal)
-         VALUES (?, ?, ?, ?, ?)`,
+        `INSERT INTO detalle_ventas (
+          venta_id, producto_id, cantidad, precio_unitario, subtotal
+        ) VALUES (?, ?, ?, ?, ?)`,
         [
           venta_id,
           detalle.producto_id,
@@ -89,15 +99,14 @@ router.post("/", async (req, res) => {
         ]
       );
 
-      // Actualizar stock
       await connection.query(
         "UPDATE productos SET stock = stock - ? WHERE id = ?",
         [detalle.cantidad, detalle.producto_id]
       );
     }
 
-    // ➕ Registrar cliente si no existe
-    if (cliente_rtn) {
+    // Registrar cliente si aplica
+    if (cliente_rtn && cliente_rtn.trim() !== "") {
       const [clienteExistente] = await connection.query(
         "SELECT id FROM clientes WHERE rtn = ?",
         [cliente_rtn]
@@ -180,14 +189,14 @@ router.post("/", async (req, res) => {
     });
   } catch (error) {
     await connection.rollback();
-    console.error(error);
+    console.error("❌ Error en registrar venta:", error.message);
     res.status(500).json({ message: error.message });
   } finally {
     connection.release();
   }
 });
 
-// Consultar listado de ventas
+// Listar ventas
 router.get("/", async (req, res) => {
   try {
     const [ventas] = await db.query(
@@ -197,6 +206,7 @@ router.get("/", async (req, res) => {
     );
     res.json(ventas);
   } catch (error) {
+    console.error("❌ Error al obtener ventas:", error.message);
     res.status(500).json({ message: "Error al obtener las ventas" });
   }
 });

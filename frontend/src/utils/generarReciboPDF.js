@@ -124,19 +124,19 @@ const generarReciboPDF = ({
     posY += 5;
 
    doc.setFontSize(8);
-   doc.text("Sub Total Exonerado:", margenIzq, posY);
+   doc.text("Subtotal Exonerado:", margenIzq, posY);
    doc.text(formatoLempiras(0), margenDer, posY, { align: "right" });
    posY += 4;
 
-   doc.text("Sub Total Exento:", margenIzq, posY);
+   doc.text("Subtotal Exento:", margenIzq, posY);
    doc.text(formatoLempiras(0), margenDer, posY, { align: "right" });
    posY += 4;
 
-   doc.text("Sub Total Gravado 15%:", margenIzq, posY);
+   doc.text("Subtotal Gravado 15%:", margenIzq, posY);
    doc.text(formatoLempiras(subtotal), margenDer, posY, { align: "right" });
    posY += 4;
 
-   doc.text("Sub Total Gravado 18%:", margenIzq, posY);
+   doc.text("Subtotal Gravado 18%:", margenIzq, posY);
    doc.text(formatoLempiras(0), margenDer, posY, { align: "right" });
    posY += 4;
 
@@ -144,15 +144,15 @@ const generarReciboPDF = ({
    doc.text(formatoLempiras(0), margenDer, posY, { align: "right" });
    posY += 4;
 
-   doc.text("Sub Total:", margenIzq, posY);
+   doc.text("Subtotal General:", margenIzq, posY); // ✅ Renombrado
    doc.text(formatoLempiras(subtotal), margenDer, posY, { align: "right" });
    posY += 4;
 
-   doc.text("15% ISV:", margenIzq, posY);
+   doc.text("ISV 15%:", margenIzq, posY); // ✅ Más limpio
    doc.text(formatoLempiras(impuesto), margenDer, posY, { align: "right" });
    posY += 4;
 
-   doc.text("18% ISV:", margenIzq, posY);
+   doc.text("ISV 18%:", margenIzq, posY);
    doc.text(formatoLempiras(0), margenDer, posY, { align: "right" });
    posY += 6;
 
@@ -161,8 +161,8 @@ const generarReciboPDF = ({
    doc.text(formatoLempiras(totalNumerico), margenDer, posY, {
      align: "right",
    });
+   posY += 6;
 
-    posY += 6;
 
     doc.setFont("helvetica", "normal").setFontSize(8);
     const metodo = metodoPago.toLowerCase();
@@ -211,7 +211,7 @@ const generarReciboPDF = ({
     posY += 5;
     doc.text("EXÍJALA", 40, posY, { align: "center" });
 
-    doc.autoPrint();
+    //doc.autoPrint();
     window.open(doc.output("bloburl"), "_blank");
   };
 };
@@ -279,12 +279,17 @@ const convertirNumeroALetras = (numero) => {
     else if (mil > 1) letras += `${convertir(mil)} mil `;
     if (cent) letras += `${centenas[cent]} `;
     const decenasUnidades = restoMil % 100;
-    if (especiales[decenasUnidades])
-      letras += `${especiales[decenasUnidades]} `;
-    else {
-      if (dec) letras += `${decenas[dec]}`;
-      if (uni) letras += ` y ${unidades[uni]} `;
-    }
+   if (especiales[decenasUnidades]) {
+     letras += `${especiales[decenasUnidades]} `;
+   } else {
+     if (dec) {
+       letras += `${decenas[dec]}`;
+       if (uni) letras += ` y ${unidades[uni]} `;
+     } else if (uni) {
+       letras += `${unidades[uni]} `;
+     }
+   }
+
     return letras.trim();
   };
 
