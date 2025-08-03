@@ -1,8 +1,8 @@
-version: 1.1.1
+version: 2.0.0
 files:
-  - url: Inventario-Setup-1.1.1.exe
-    sha512: tmIdS3xH0SrIMpCbFo3BQFYm1WAAnzTTDHhH2rf9CFjA2lucTDSEaV53JBokQX69MqbKSz+sYrmJjCBWK8LRPw==
-    size: 112957683
-path: Inventario-Setup-1.1.1.exe
-sha512: tmIdS3xH0SrIMpCbFo3BQFYm1WAAnzTTDHhH2rf9CFjA2lucTDSEaV53JBokQX69MqbKSz+sYrmJjCBWK8LRPw==
-releaseDate: '2025-07-27T19:18:01.267Z'
+  - url: Inventario-Setup-2.0.0.exe
+    sha512: D0mj03uL7Gkj7wr/3zUoGxui1EFyyZNIxbFoxDTp2NyEpNOu4t+DeMQz321fYV2rxr9pToVb2iGL5mMreK73hA==
+    size: 84456097
+path: Inventario-Setup-2.0.0.exe
+sha512: D0mj03uL7Gkj7wr/3zUoGxui1EFyyZNIxbFoxDTp2NyEpNOu4t+DeMQz321fYV2rxr9pToVb2iGL5mMreK73hA==
+releaseDate: '2025-08-02T23:43:31.837Z'

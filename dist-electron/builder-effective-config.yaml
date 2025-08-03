@@ -5,15 +5,9 @@ appId: Pixel.Digital.Inventario
 productName: Inventario
 files:
   - filter:
-      - icono-moto-electron.ico
       - main.js
       - frontend/dist/**/*
-  - from: backend/
-    to: backend/
-    filter:
-      - '**/*'
-asarUnpack:
-  - backend/inventario-backend.exe
+      - icono-moto-electron.ico
 win:
   icon: icono-moto-electron.ico
   target: nsis

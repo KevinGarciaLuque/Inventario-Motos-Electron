@@ -17,20 +17,21 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
-  const backendExePath = path.join(
-    process.resourcesPath,
-    "backend",
-    "inventario-backend.exe"
-  );
+  // ✅ Ruta fija: fuera del instalador
+  const backendExePath = "C:\\Inventario\\backend\\inventario-backend.exe";
 
   console.log("⏳ Iniciando backend:", backendExePath);
 
-  backendProcess = spawn(backendExePath, [], {
-    detached: true,
-    stdio: "ignore",
-  });
+  try {
+    backendProcess = spawn(backendExePath, [], {
+      detached: true,
+      stdio: "ignore",
+    });
 
-  backendProcess.unref();
+    backendProcess.unref();
+  } catch (err) {
+    console.error("❌ Error al iniciar el backend:", err);
+  }
 
   createWindow();
 });

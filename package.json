@@ -1,6 +1,6 @@
 {
   "name": "inventario-app",
-  "version": "1.1.1",
+  "version": "2.0.0",
   "description": "Sistema de Inventario de Escritorio",
   "main": "main.js",
   "author": "Pixel Digital - Kevin Garcia",
@@ -18,17 +18,7 @@
     "files": [
       "main.js",
       "frontend/dist/**/*",
-      {
-        "from": "backend/",
-        "to": "backend/",
-        "filter": [
-          "**/*"
-        ]
-      },
       "icono-moto-electron.ico"
-    ],
-    "asarUnpack": [
-      "backend/inventario-backend.exe"
     ],
     "directories": {
       "output": "dist-electron"
