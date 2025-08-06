@@ -32,30 +32,28 @@ export default function FacturasPage() {
   );
 
   // Botón imprimir
+  // Botón imprimir
   const manejarImpresion = async (factura) => {
     try {
       const res = await api.get(`/facturas/${factura.id}`);
       const datosFactura = res.data;
-generarReciboPDF({
-  numeroFactura: datosFactura.numero_factura,
-  carrito: datosFactura.carrito,
-  subtotal: Number(datosFactura.subtotal) || 0,
-  impuesto: Number(datosFactura.impuesto) || 0,
-  total: Number(datosFactura.total) || 0,
-  user: datosFactura.user,
-  cai: datosFactura.cai,
-  cliente_nombre: datosFactura.cliente_nombre || "Consumidor Final",
-  cliente_rtn: datosFactura.cliente_rtn || "",
-  cliente_direccion: datosFactura.cliente_direccion || "",
-  metodoPago: datosFactura.metodo_pago || "efectivo",
-  efectivo: Number(datosFactura.efectivo) || 0,
-  cambio: Number(datosFactura.cambio) || 0,
-});
 
-
-
-
-
+      generarReciboPDF({
+        numeroFactura: datosFactura.numero_factura,
+        carrito: datosFactura.carrito,
+        subtotal: Number(datosFactura.subtotal) || 0,
+        impuesto: Number(datosFactura.impuesto) || 0,
+        total: Number(datosFactura.total) || 0,
+        user: datosFactura.user,
+        cai: datosFactura.cai,
+        cliente_nombre: datosFactura.cliente_nombre || "Consumidor Final",
+        cliente_rtn: datosFactura.cliente_rtn || "",
+        cliente_direccion: datosFactura.cliente_direccion || "",
+        metodoPago: datosFactura.metodo_pago || "efectivo",
+        efectivo: Number(datosFactura.efectivo) || 0,
+        cambio: Number(datosFactura.cambio) || 0,
+        esCopia: true, // ✅ Se imprimirá como copia
+      });
     } catch (error) {
       console.error("Error al generar el PDF:", error);
     }
@@ -117,7 +115,8 @@ generarReciboPDF({
               <th>Número Factura</th>
               <th>CAI</th>
               <th>Fecha</th>
-              <th>Total</th>
+              <th>Total (ISV)</th>
+
               <th>Acción</th>
             </tr>
           </thead>

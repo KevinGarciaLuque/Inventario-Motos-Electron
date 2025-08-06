@@ -114,6 +114,10 @@ const handleCambio = ({ metodo, efectivo, cambio }) => {
   });
 };
 
+const limpiarCodigo = (codigo) => {
+  return codigo.trim().toUpperCase();
+};
+
 
   const scannerTimeout = useRef(null);
 
@@ -140,7 +144,7 @@ const handleCambio = ({ metodo, efectivo, cambio }) => {
       if (scannerTimeout.current) clearTimeout(scannerTimeout.current);
       scannerTimeout.current = setTimeout(() => {
         if (bufferRef.current.length > 0) {
-          handleBuscarCodigo(bufferRef.current);
+          handleBuscarCodigo(limpiarCodigo(bufferRef.current));
           bufferRef.current = "";
         }
       }, 300);
@@ -555,12 +559,14 @@ const registrarVenta = async () => {
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               e.preventDefault();
-              const esCodigo = /^\d{6,}$/.test(buscar.trim()); // Puedes ajustar esta regla
-              if (esCodigo) {
-                handleBuscarCodigo(buscar.trim());
-              } else {
-                handleBuscarNombre();
-              }
+             const valor = limpiarCodigo(buscar);
+             const esCodigo = /^[a-zA-Z0-9\-]+$/.test(valor); // acepta letras, números y guiones
+             if (esCodigo) {
+               handleBuscarCodigo(valor);
+             } else {
+               handleBuscarNombre();
+             }
+
             }
           }}
         />

@@ -62,8 +62,10 @@ router.post("/", async (req, res) => {
       });
     }
 
-    const impuesto = parseFloat((total * 0.15).toFixed(2));
-    const total_con_impuesto = parseFloat((total + impuesto).toFixed(2));
+    // ✅ Extraer ISV del precio ya incluido
+    const subtotal = parseFloat((total / 1.15).toFixed(2));
+    const impuesto = parseFloat((total - subtotal).toFixed(2));
+    const total_con_impuesto = parseFloat(total.toFixed(2));
 
     // Insertar venta
     const [ventaResult] = await connection.query(
@@ -72,7 +74,7 @@ router.post("/", async (req, res) => {
         usuario_id, metodo_pago, efectivo, cambio
       ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [
-        total,
+        subtotal,
         impuesto,
         total_con_impuesto,
         usuario_id,
@@ -149,7 +151,7 @@ router.post("/", async (req, res) => {
         numeroFactura,
         venta_id,
         cai.id,
-        total_con_impuesto,
+        total_con_impuesto, // ✅ Este valor es correcto
         cliente_nombre,
         cliente_rtn,
         cliente_direccion,

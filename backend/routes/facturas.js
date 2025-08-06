@@ -70,13 +70,13 @@ router.get("/:id", async (req, res) => {
       [factura.venta_id]
     );
 
-    // 3. Calcular totales
-    const subtotal = items.reduce(
+    // 3. Calcular totales (con impuesto incluido en el precio)
+    const total = items.reduce(
       (acc, item) => acc + item.cantidad * item.precio,
       0
     );
-    const impuesto = +(subtotal * 0.15).toFixed(2);
-    const total = +(subtotal + impuesto).toFixed(2);
+    const impuesto = +((total / 1.15) * 0.15).toFixed(2);
+    const subtotal = +(total - impuesto).toFixed(2);
 
     // 4. Respuesta completa para generar PDF
     res.json({
