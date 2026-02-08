@@ -1,8 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { Alert } from "react-bootstrap";
-import { FaExclamationTriangle } from "react-icons/fa";
-
-
 import {
   Button,
   FormControl,
@@ -14,6 +10,7 @@ import {
   Spinner,
   Form,
 } from "react-bootstrap";
+
 import { BsCheckCircleFill, BsExclamationTriangleFill } from "react-icons/bs";
 import {
   FaBoxOpen,
@@ -23,13 +20,18 @@ import {
   FaTrash,
   FaUserPlus,
 } from "react-icons/fa";
+
 import api from "../../api/axios";
 import { useUser } from "../context/UserContext";
+
 import generarReciboPDF from "../utils/generarReciboPDF";
+import generarComprobanteEntregaPDF from "../utils/generarComprobanteEntregaPDF"; // ✅ crea este util
 import MetodosPagos from "../components/MetodosPagos";
 import CardCaiDisponible from "../components/CardCaiDisponible";
 
+// ✅ Ideal: usa tu VITE_API_URL si lo tienes
 const API_URL = "http://localhost:3000";
+
 const getImgSrc = (imagen) => {
   if (!imagen) return "/default.jpg";
   if (imagen.startsWith("http")) return imagen;
@@ -38,39 +40,49 @@ const getImgSrc = (imagen) => {
   return `${API_URL}/uploads/${imagen}`;
 };
 
+const limpiarCodigo = (codigo) => codigo.trim().toUpperCase();
+
 export default function RegistrarVentaPage() {
   const { user } = useUser();
+
+  // Productos / carrito
   const [productos, setProductos] = useState([]);
   const [carrito, setCarrito] = useState([]);
   const [buscar, setBuscar] = useState("");
-  const [codigoBuffer, setCodigoBuffer] = useState("");
+
+  // CAI
   const [cai, setCai] = useState(null);
-  const [toast, setToast] = useState({ show: false, message: "" });
-  const [usarRTN, setUsarRTN] = useState(false);
-  const bufferRef = useRef("");
-  const [datosPago, setDatosPago] = useState({});
-  const yaMostroModalRef = useRef(false); // ✅ No causa render como useState
   const [modalSinCai, setModalSinCai] = useState(false);
-  const caiErrorMostradoRef = useRef(false); // ✅ NO causa re-render
+  const caiErrorMostradoRef = useRef(false);
   const [refreshCaiTrigger, setRefreshCaiTrigger] = useState(0);
+
+  // Toast simple
+  const [toast, setToast] = useState({ show: false, message: "" });
+
+  // Pagos
   const [resetPagoTrigger, setResetPagoTrigger] = useState(0);
 
-
-
-  // Clientes
+  // Switch RTN / clientes
+  const [usarRTN, setUsarRTN] = useState(false);
   const [clientes, setClientes] = useState([]);
   const [clientesLoading, setClientesLoading] = useState(false);
   const [filtroCliente, setFiltroCliente] = useState("");
 
-  // Modal factura
+  // Switch entrega / envío (opcional pero recomendado)
+  const [esEntrega, setEsEntrega] = useState(false);
+
+  // Modal de éxito (venta registrada) con opción de entrega
   const [modal, setModal] = useState({
     show: false,
     type: "success",
     title: "",
     message: "",
     dataRecibo: null,
+    mostrarEntrega: false,
+    imprimirEntrega: false,
   });
 
+  // Modal de feedback (errores/advertencias)
   const [feedbackModal, setFeedbackModal] = useState({
     show: false,
     success: true,
@@ -83,10 +95,10 @@ export default function RegistrarVentaPage() {
     nombre: "",
     rtn: "",
     direccion: "",
+    telefono: "",
   });
-  const [editandoCliente, setEditandoCliente] = useState(false);
 
-  // Datos del cliente para factura
+  // Datos de la venta
   const [venta, setVenta] = useState({
     metodo_pago: "efectivo",
     efectivo: 0,
@@ -94,59 +106,30 @@ export default function RegistrarVentaPage() {
     cliente_nombre: "",
     cliente_rtn: "",
     cliente_direccion: "",
+    cliente_telefono: "",
   });
 
-const handleCambio = ({ metodo, efectivo, cambio }) => {
-  setVenta((prev) => {
-    if (
-      prev.metodo_pago === metodo &&
-      prev.efectivo === efectivo &&
-      prev.cambio === cambio
-    ) {
-      return prev; // Evita re-render innecesario
-    }
-    return {
-      ...prev,
-      metodo_pago: metodo,
-      efectivo,
-      cambio,
-    };
-  });
-};
-
-const limpiarCodigo = (codigo) => {
-  return codigo.trim().toUpperCase();
-};
-
-
+  // ==========================
+  // SCANNER (buffer teclado)
+  // ==========================
+  const bufferRef = useRef("");
   const scannerTimeout = useRef(null);
-
-  // ✅ Este se ejecuta solo cuando cambia el switch "usarRTN"
-  useEffect(() => {
-    if (usarRTN) {
-      cargarClientes();
-    }
-  }, [usarRTN]);
 
   useEffect(() => {
     const handleKeyPress = (e) => {
-      // Evitar que se dispare si el usuario está escribiendo en un input
       const target = e.target.tagName;
       const esInputEditable = target === "INPUT" || target === "TEXTAREA";
-
       if (esInputEditable) return;
 
       const char = e.key;
-      if (char.length === 1) {
-        bufferRef.current += char;
-      }
+      if (char.length === 1) bufferRef.current += char;
 
       if (scannerTimeout.current) clearTimeout(scannerTimeout.current);
+
       scannerTimeout.current = setTimeout(() => {
-        if (bufferRef.current.length > 0) {
-          handleBuscarCodigo(limpiarCodigo(bufferRef.current));
-          bufferRef.current = "";
-        }
+        const codigo = limpiarCodigo(bufferRef.current);
+        if (codigo.length > 0) handleBuscarCodigo(codigo);
+        bufferRef.current = "";
       }, 300);
     };
 
@@ -157,51 +140,108 @@ const limpiarCodigo = (codigo) => {
     };
   }, []);
 
+  // ==========================
+  // Carga inicial
+  // ==========================
   const cargarProductos = async () => {
-    const res = await api.get("/productos");
-    setProductos(res.data);
+    try {
+      const res = await api.get("/productos");
+      setProductos(res.data || []);
+    } catch {
+      setProductos([]);
+    }
   };
 
-const consultarCai = async () => {
-  try {
-    const res = await api.get("/cai/activo");
-    console.log("✅ CAI encontrado:", res.data);
-    setCai(res.data);
-  } catch (error) {
-    console.error("❌ Error al consultar CAI:", error.message);
+  const consultarCai = async () => {
+    try {
+      const res = await api.get("/cai/activo");
+      setCai(res.data);
+    } catch (error) {
+      console.error("❌ Error al consultar CAI:", error?.message);
+      setCai(null);
 
-    if (!caiErrorMostradoRef.current) {
-      setModalSinCai(true); // solo una vez
-      caiErrorMostradoRef.current = true;
+      if (!caiErrorMostradoRef.current) {
+        setModalSinCai(true);
+        caiErrorMostradoRef.current = true;
+      }
     }
-
-    setCai(null);
-  }
-};
+  };
 
   useEffect(() => {
     consultarCai();
     cargarProductos();
   }, []);
 
-  // =======================
-  // BUSCAR Y AGREGAR PRODUCTOS
-  // =======================
+  // ==========================
+  // Clientes
+  // ==========================
+  const cargarClientes = async () => {
+    setClientesLoading(true);
+    try {
+      const res = await api.get("/clientes");
+      setClientes(res.data || []);
+    } catch {
+      setClientes([]);
+    } finally {
+      setClientesLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (usarRTN) cargarClientes();
+  }, [usarRTN]);
+
+  const clientesFiltrados = clientes.filter((c) =>
+    `${c.nombre || ""} ${c.rtn || ""} ${c.telefono || ""}`
+      .toLowerCase()
+      .includes((filtroCliente || "").toLowerCase()),
+  );
+
+  // ==========================
+  // Helpers UI
+  // ==========================
+  const mostrarToast = (message) => {
+    setToast({ show: true, message });
+    setTimeout(() => setToast((t) => ({ ...t, show: false })), 2000);
+  };
+
+  const handleCambio = ({ metodo, efectivo, cambio }) => {
+    setVenta((prev) => {
+      if (
+        prev.metodo_pago === metodo &&
+        Number(prev.efectivo) === Number(efectivo) &&
+        Number(prev.cambio) === Number(cambio)
+      ) {
+        return prev;
+      }
+      return { ...prev, metodo_pago: metodo, efectivo, cambio };
+    });
+  };
+
+  // ==========================
+  // Buscar / agregar productos
+  // ==========================
   const handleBuscarCodigo = async (codigo) => {
-    // Buscar por código de barras
-    const res = await api.get(`/productos/buscar?codigo=${codigo.trim()}`);
-    if (res.data.length > 0) {
-      agregarProductoAlCarrito(res.data[0]);
-      setBuscar("");
-    } else {
-      mostrarToast("Producto no encontrado");
+    try {
+      const res = await api.get(`/productos/buscar?codigo=${codigo.trim()}`);
+      if (res.data?.length > 0) {
+        agregarProductoAlCarrito(res.data[0]);
+        setBuscar("");
+      } else {
+        mostrarToast("Producto no encontrado");
+      }
+    } catch {
+      mostrarToast("Error buscando producto");
     }
   };
 
   const handleBuscarNombre = () => {
-    // Buscar por nombre exacto (case insensitive)
     const nombre = buscar.trim().toLowerCase();
-    const prod = productos.find((p) => p.nombre.toLowerCase() === nombre);
+    if (!nombre) return;
+
+    const prod = productos.find(
+      (p) => (p.nombre || "").toLowerCase() === nombre,
+    );
     if (prod) {
       agregarProductoAlCarrito(prod);
       setBuscar("");
@@ -213,21 +253,23 @@ const consultarCai = async () => {
   const agregarProductoAlCarrito = (producto) => {
     setCarrito((prev) => {
       const existe = prev.find((p) => p.id === producto.id);
+
       if (existe) {
         if (existe.cantidad + 1 > producto.stock) {
           mostrarToast(`Stock insuficiente. Stock actual: ${producto.stock}`);
           return prev;
         }
         return prev.map((p) =>
-          p.id === producto.id ? { ...p, cantidad: p.cantidad + 1 } : p
+          p.id === producto.id ? { ...p, cantidad: p.cantidad + 1 } : p,
         );
-      } else {
-        if (producto.stock === 0) {
-          mostrarToast("No hay stock disponible.");
-          return prev;
-        }
-        return [...prev, { ...producto, cantidad: 1 }];
       }
+
+      if (producto.stock === 0) {
+        mostrarToast("No hay stock disponible.");
+        return prev;
+      }
+
+      return [...prev, { ...producto, cantidad: 1 }];
     });
   };
 
@@ -238,34 +280,30 @@ const consultarCai = async () => {
     setCarrito((prev) =>
       prev.map((p) =>
         p.id === id
-          ? { ...p, cantidad: Math.max(1, Math.min(cantidad, p.stock)) }
-          : p
-      )
+          ? {
+              ...p,
+              cantidad: Math.max(1, Math.min(Number(cantidad) || 1, p.stock)),
+            }
+          : p,
+      ),
     );
   };
 
-  // =======================
-  // CLIENTES
-  // =======================
-  const cargarClientes = async () => {
-    setClientesLoading(true);
-    try {
-      const res = await api.get("/clientes");
-      setClientes(res.data);
-    } catch (error) {
-      setClientes([]);
-    } finally {
-      setClientesLoading(false);
-    }
-  };
-
-  const clientesFiltrados = clientes.filter((c) =>
-    `${c.nombre} ${c.rtn}`.toLowerCase().includes(filtroCliente.toLowerCase())
+  // ==========================
+  // Totales (ISV incluido en precio)
+  // ==========================
+  const total = carrito.reduce(
+    (acc, item) =>
+      acc + (Number(item.cantidad) || 0) * Number(item.precio || 0),
+    0,
   );
 
-  // =======================
-  // MODAL AGREGAR CLIENTE
-  // =======================
+  const impuesto = (total / 1.15) * 0.15;
+  const subtotal = total - impuesto;
+
+  // ==========================
+  // Modal cliente rápido
+  // ==========================
   const handleGuardarCliente = async () => {
     if (!formularioCliente.nombre.trim()) {
       mostrarToast("El nombre es obligatorio");
@@ -274,180 +312,221 @@ const consultarCai = async () => {
     try {
       await api.post("/clientes", formularioCliente);
       setModalCliente(false);
-      setFormularioCliente({ nombre: "", rtn: "", direccion: "" });
+      setFormularioCliente({
+        nombre: "",
+        rtn: "",
+        direccion: "",
+        telefono: "",
+      });
       cargarClientes();
       mostrarToast("Cliente agregado");
-    } catch (err) {
+    } catch {
       mostrarToast("Error al agregar cliente");
     }
   };
 
   const handleCerrarModalCliente = () => {
     setModalCliente(false);
-    setFormularioCliente({ nombre: "", rtn: "", direccion: "" });
+    setFormularioCliente({ nombre: "", rtn: "", direccion: "", telefono: "" });
   };
 
-  // =======================
-  // VENTA Y FACTURA
-  // =======================
-  const total = carrito.reduce(
-    (acc, item) => acc + item.cantidad * parseFloat(item.precio),
-    0
-  );
+  // ==========================
+  // Registrar venta
+  // ==========================
+  const registrarVenta = async () => {
+    try {
+      // ✅ Si no hay CAI, no permitimos vender
+      if (!cai) {
+        setModalSinCai(true);
+        return;
+      }
 
-  // Calcula impuesto incluido (ya contenido dentro del precio)
-  const impuesto = (total / 1.15) * 0.15;
-  const subtotal = total - impuesto;
+      if (carrito.length === 0) {
+        setFeedbackModal({
+          show: true,
+          success: false,
+          message: "⚠️ No hay productos para registrar la venta.",
+        });
+        return;
+      }
 
-const registrarVenta = async () => {
-  try {
-    if (carrito.length === 0) {
+      if (venta.metodo_pago === "efectivo" && Number(venta.efectivo) < total) {
+        setFeedbackModal({
+          show: true,
+          success: false,
+          message: "⚠️ El efectivo recibido no puede ser menor al total.",
+        });
+        return;
+      }
+
+      const productosPayload = carrito.map((item) => ({
+        producto_id: item.id,
+        cantidad: item.cantidad,
+      }));
+
+      const { data } = await api.post("/ventas", {
+        usuario_id: user.id,
+        productos: productosPayload,
+
+        cliente_nombre: venta.cliente_nombre,
+        cliente_rtn: venta.cliente_rtn,
+        cliente_direccion: venta.cliente_direccion,
+        cliente_telefono: venta.cliente_telefono,
+
+        metodo_pago: venta.metodo_pago,
+        efectivo: venta.efectivo,
+        cambio: venta.cambio,
+
+        es_entrega: esEntrega ? 1 : 0, // opcional si tu backend lo ignora, no pasa nada
+      });
+
+      const dataRecibo = {
+        numeroFactura: data.numeroFactura,
+        carrito,
+        subtotal,
+        impuesto,
+        total,
+        user,
+        cai: cai || {},
+
+        cliente_nombre: venta.cliente_nombre,
+        cliente_rtn: venta.cliente_rtn,
+        cliente_direccion: venta.cliente_direccion,
+        cliente_telefono: venta.cliente_telefono,
+
+        metodoPago: venta.metodo_pago,
+        efectivo: venta.efectivo,
+        cambio: venta.cambio,
+      };
+
+      // ✅ Aplica comprobante si hay dirección o si es entrega
+      const aplicaEntrega =
+        !!(
+          venta.cliente_direccion && venta.cliente_direccion.trim().length > 0
+        ) || esEntrega;
+
+      setModal({
+        show: true,
+        type: "success",
+        title: "Venta registrada",
+        message: "La venta fue registrada exitosamente.",
+        dataRecibo,
+        mostrarEntrega: aplicaEntrega,
+        imprimirEntrega: aplicaEntrega, // por defecto marcado si aplica
+      });
+
+      // 🔁 Refrescar visual CAI
+      setRefreshCaiTrigger((prev) => prev + 1);
+
+      // ✅ Limpiar estados
+      setCarrito([]);
+      setBuscar("");
+      setEsEntrega(false);
+
+      setVenta({
+        metodo_pago: "efectivo",
+        efectivo: 0,
+        cambio: 0,
+        cliente_nombre: "",
+        cliente_rtn: "",
+        cliente_direccion: "",
+        cliente_telefono: "",
+      });
+
+      setResetPagoTrigger((prev) => prev + 1);
+      setFormularioCliente({
+        nombre: "",
+        rtn: "",
+        direccion: "",
+        telefono: "",
+      });
+    } catch (error) {
+      console.error("❌ Error al registrar venta:", error);
       setFeedbackModal({
         show: true,
         success: false,
-        message: "⚠️ No hay productos para registrar la venta.",
+        message: "❌ Error al registrar la venta.",
       });
-      return;
-    }
-
-    if (venta.metodo_pago === "efectivo" && venta.efectivo < total) {
-      setFeedbackModal({
-        show: true,
-        success: false,
-        message: "⚠️ El efectivo recibido no puede ser menor al total.",
-      });
-      return;
-    }
-
-    const productosPayload = carrito.map((item) => ({
-      producto_id: item.id,
-      cantidad: item.cantidad,
-    }));
-
-    const { data } = await api.post("/ventas", {
-      usuario_id: user.id,
-      productos: productosPayload,
-      cliente_nombre: venta.cliente_nombre,
-      cliente_rtn: venta.cliente_rtn,
-      cliente_direccion: venta.cliente_direccion,
-      metodo_pago: venta.metodo_pago,
-      efectivo: venta.efectivo,
-      cambio: venta.cambio,
-    });
-
-    const dataRecibo = {
-      numeroFactura: data.numeroFactura,
-      carrito,
-      subtotal,
-      impuesto,
-      total,
-      user,
-      cai: cai || {},
-      cliente_nombre: venta.cliente_nombre,
-      cliente_rtn: venta.cliente_rtn,
-      cliente_direccion: venta.cliente_direccion,
-      metodoPago: venta.metodo_pago,
-      efectivo: venta.efectivo,
-      cambio: venta.cambio,
-    };
-
-    setModal({
-      show: true,
-      type: "success",
-      title: "Venta registrada",
-      message: "La venta fue registrada exitosamente.",
-      dataRecibo,
-    });
-
-   
-
-    // 🔁 Refrescar visual del stock de facturas disponibles
-    setRefreshCaiTrigger((prev) => prev + 1);
-
-    // ✅ Limpiar todos los estados
-    setCarrito([]);
-    setVenta({
-      metodo_pago: "efectivo",
-      efectivo: 0,
-      cambio: 0,
-      cliente_nombre: "",
-      cliente_rtn: "",
-      cliente_direccion: "",
-    });
-    setBuscar("");
-    setDatosPago({});
-    setFormularioCliente({ nombre: "", rtn: "", direccion: "" });
-    setResetPagoTrigger((prev) => prev + 1); // <-- Este es el correcto
-  } catch (error) {
-    console.error("❌ Error al registrar venta:", error);
-    setFeedbackModal({
-      show: true,
-      success: false,
-      message: "❌ Error al registrar la venta.",
-    });
-  }
-};
-
- 
-  // =======================
-  const mostrarModal = ({ type, title, message }) =>
-    setModal({ show: true, type, title, message, dataRecibo: null });
-
-  const mostrarToast = (message) => {
-    setToast({ show: true, message });
-    setTimeout(() => setToast({ show: false }), 2000);
-  };
-
-  const imprimirRecibo = () => {
-    if (modal.dataRecibo) {
-      generarReciboPDF(modal.dataRecibo);
-      setModal((prev) => ({ ...prev, show: false }));
     }
   };
 
-  // ==========================================================================================================================
+  // ==========================
+  // Imprimir desde el modal
+  // ==========================
+  const imprimirSegunSeleccion = () => {
+    if (!modal.dataRecibo) return;
+
+    // 1) Siempre imprime el recibo fiscal
+    generarReciboPDF(modal.dataRecibo);
+
+    // 2) Opcional: comprobante de entrega (carta)
+    if (modal.mostrarEntrega && modal.imprimirEntrega) {
+      generarComprobanteEntregaPDF({
+        ...modal.dataRecibo,
+        esCopia: false,
+        observaciones: "Recibí conforme la mercadería descrita.",
+      });
+    }
+
+    setModal((m) => ({ ...m, show: false }));
+  };
+
+  // ==========================
   // RENDER
-  // =======================
+  // ==========================
   return (
     <div className="container py-4">
       <h2 className="mb-4 text-center">
         <FaBoxOpen className="text-primary me-2" /> Módulo de Ventas
       </h2>
+
+      {/* Switch RTN + Card CAI */}
       <div className="d-flex align-items-center justify-content-between flex-wrap mb-3">
-        {/* Switch: Usar cliente con RTN */}
         <FormCheck
           type="switch"
-          id="switch-rt"
+          id="switch-rtn"
           label={
-            <span style={{ fontSize: "1.rem", fontWeight: "400" }}>
+            <span style={{ fontSize: "1rem", fontWeight: "400" }}>
               Usar cliente con RTN
             </span>
           }
           checked={usarRTN}
-          onChange={() => setUsarRTN(!usarRTN)}
+          onChange={() => setUsarRTN((v) => !v)}
           style={{
-            fontSize: "2.0rem",
             padding: "0.5rem",
             marginBottom: "1rem",
-            marginLeft: "4rem",
+            marginLeft: "1rem",
           }}
         />
 
-        {/* Card del CAI: alineado a la derecha */}
         <div style={{ flexShrink: 0 }}>
           <CardCaiDisponible refreshTrigger={refreshCaiTrigger} />
         </div>
       </div>
 
-      {/* ============================================== STOCK DISponible ========== */}
+      {/* Switch entrega */}
+      <div className="mb-3">
+        <FormCheck
+          type="switch"
+          id="switch-entrega"
+          label="Entrega / Envío"
+          checked={esEntrega}
+          onChange={() => setEsEntrega((v) => !v)}
+        />
+        <small className="text-muted">
+          Si está activo o si el cliente tiene dirección, se habilita el
+          comprobante de entrega.
+        </small>
+      </div>
 
-      {/* ========== SECCIÓN CLIENTES ========== */}
+      {/* CLIENTES */}
       {usarRTN && (
         <>
           <h5>Clientes</h5>
+
           <InputGroup className="mb-2">
             <FormControl
-              placeholder="Buscar por nombre o RTN"
+              placeholder="Buscar por nombre, RTN o teléfono"
               value={filtroCliente}
               onChange={(e) => setFiltroCliente(e.target.value)}
             />
@@ -459,7 +538,11 @@ const registrarVenta = async () => {
               <FaUserPlus className="mb-1" /> Agregar Cliente
             </Button>
           </InputGroup>
-          <div className="scroll-container" style={{ maxHeight: "150px" }}>
+
+          <div
+            className="scroll-container"
+            style={{ maxHeight: "180px", overflowY: "auto" }}
+          >
             {clientesLoading ? (
               <Spinner animation="border" size="sm" />
             ) : (
@@ -470,11 +553,12 @@ const registrarVenta = async () => {
                 responsive
                 className="sticky-header w-100"
               >
-                <thead className="table-light">
+                <thead className="table-light sticky-top">
                   <tr>
                     <th>Nombre</th>
                     <th>RTN</th>
                     <th>Dirección</th>
+                    <th>Teléfono</th>
                     <th>Activo</th>
                   </tr>
                 </thead>
@@ -484,12 +568,13 @@ const registrarVenta = async () => {
                       key={cliente.id}
                       style={{ cursor: "pointer" }}
                       onClick={() =>
-                        setVenta({
-                          ...venta,
-                          cliente_nombre: cliente.nombre,
-                          cliente_rtn: cliente.rtn,
-                          cliente_direccion: cliente.direccion,
-                        })
+                        setVenta((v) => ({
+                          ...v,
+                          cliente_nombre: cliente.nombre || "",
+                          cliente_rtn: cliente.rtn || "",
+                          cliente_direccion: cliente.direccion || "",
+                          cliente_telefono: cliente.telefono || "",
+                        }))
                       }
                       className={
                         venta.cliente_rtn === cliente.rtn ? "table-primary" : ""
@@ -498,10 +583,11 @@ const registrarVenta = async () => {
                       <td>{cliente.nombre}</td>
                       <td>{cliente.rtn}</td>
                       <td>{cliente.direccion}</td>
+                      <td>{cliente.telefono || "-"}</td>
                       <td>
                         <FormCheck
                           type="switch"
-                          checked={cliente.activo}
+                          checked={!!cliente.activo}
                           disabled
                         />
                       </td>
@@ -512,32 +598,41 @@ const registrarVenta = async () => {
             )}
           </div>
 
-          {/* Inputs cliente solo si está activado el switch */}
+          {/* Inputs cliente */}
           <div className="row mt-3">
-            <div className="col-md-4 mb-2">
+            <div className="col-md-3 mb-2">
               <FormControl
                 placeholder="Nombre del Cliente"
                 value={venta.cliente_nombre}
                 onChange={(e) =>
-                  setVenta({ ...venta, cliente_nombre: e.target.value })
+                  setVenta((v) => ({ ...v, cliente_nombre: e.target.value }))
                 }
               />
             </div>
-            <div className="col-md-4 mb-2">
+            <div className="col-md-3 mb-2">
               <FormControl
                 placeholder="RTN del Cliente"
                 value={venta.cliente_rtn}
                 onChange={(e) =>
-                  setVenta({ ...venta, cliente_rtn: e.target.value })
+                  setVenta((v) => ({ ...v, cliente_rtn: e.target.value }))
                 }
               />
             </div>
-            <div className="col-md-4 mb-2">
+            <div className="col-md-3 mb-2">
+              <FormControl
+                placeholder="Teléfono del Cliente"
+                value={venta.cliente_telefono}
+                onChange={(e) =>
+                  setVenta((v) => ({ ...v, cliente_telefono: e.target.value }))
+                }
+              />
+            </div>
+            <div className="col-md-3 mb-2">
               <FormControl
                 placeholder="Dirección del Cliente"
                 value={venta.cliente_direccion}
                 onChange={(e) =>
-                  setVenta({ ...venta, cliente_direccion: e.target.value })
+                  setVenta((v) => ({ ...v, cliente_direccion: e.target.value }))
                 }
               />
             </div>
@@ -545,28 +640,26 @@ const registrarVenta = async () => {
         </>
       )}
 
-      {/* ===== BUSCAR Y AGREGAR PRODUCTO ===== */}
+      {/* BUSCAR PRODUCTO */}
       <h5 className="mt-4">Buscar Producto</h5>
+
       <InputGroup className="mb-3">
         <InputGroup.Text>
           <FaSearch />
         </InputGroup.Text>
+
         <FormControl
-          placeholder="Buscar producto por nombre o escanear código"
+          placeholder="Buscar por nombre o escanear código"
           value={buscar}
           onChange={(e) => setBuscar(e.target.value)}
           list="sugerencias"
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               e.preventDefault();
-             const valor = limpiarCodigo(buscar);
-             const esCodigo = /^[a-zA-Z0-9\-]+$/.test(valor); // acepta letras, números y guiones
-             if (esCodigo) {
-               handleBuscarCodigo(valor);
-             } else {
-               handleBuscarNombre();
-             }
-
+              const valor = limpiarCodigo(buscar);
+              const esCodigo = /^[a-zA-Z0-9\-]+$/.test(valor);
+              if (esCodigo) handleBuscarCodigo(valor);
+              else handleBuscarNombre();
             }
           }}
         />
@@ -576,6 +669,7 @@ const registrarVenta = async () => {
             <option key={p.id} value={p.nombre} />
           ))}
         </datalist>
+
         <Button variant="primary" onClick={handleBuscarNombre}>
           Agregar
         </Button>
@@ -584,15 +678,17 @@ const registrarVenta = async () => {
         </Button>
       </InputGroup>
 
+      {/* CARRITO */}
       <h4 className="mt-4">Carrito de Venta</h4>
+
       <div
         className="mb-4"
         style={{
           maxHeight: "300px",
-          height: "300px", // 🔥 Forzar altura en todos los dispositivos
+          height: "300px",
           overflowY: "auto",
           overflowX: "auto",
-          border: "1px solid #dee2e6", // opcional para claridad visual
+          border: "1px solid #dee2e6",
         }}
       >
         <Table
@@ -600,7 +696,7 @@ const registrarVenta = async () => {
           bordered
           hover
           className="sticky-header"
-          style={{ minWidth: "800px" }} // ajusta a tus columnas
+          style={{ minWidth: "800px" }}
         >
           <thead className="table-light sticky-top">
             <tr>
@@ -616,6 +712,7 @@ const registrarVenta = async () => {
               <th></th>
             </tr>
           </thead>
+
           <tbody>
             {carrito.map((item) => (
               <tr key={item.id}>
@@ -632,20 +729,23 @@ const registrarVenta = async () => {
                 <td>{item.categoria || "-"}</td>
                 <td>{item.ubicacion || "-"}</td>
                 <td>{item.descripcion || "-"}</td>
-                <td>{parseFloat(item.precio).toFixed(2)} Lps</td>
-                <td>
+                <td>{Number(item.precio || 0).toFixed(2)} Lps</td>
+                <td style={{ width: 110 }}>
                   <input
                     type="number"
                     min="1"
                     value={item.cantidad}
                     className="form-control form-control-sm"
                     onChange={(e) =>
-                      modificarCantidad(item.id, parseInt(e.target.value))
+                      modificarCantidad(item.id, parseInt(e.target.value, 10))
                     }
                   />
                 </td>
                 <td>
-                  {(item.cantidad * parseFloat(item.precio)).toFixed(2)} Lps
+                  {(
+                    Number(item.cantidad || 0) * Number(item.precio || 0)
+                  ).toFixed(2)}{" "}
+                  Lps
                 </td>
                 <td>
                   <Button
@@ -662,6 +762,7 @@ const registrarVenta = async () => {
         </Table>
       </div>
 
+      {/* PAGOS + TOTALES */}
       <div className="row mt-3">
         <div className="col-md-6 mb-3">
           <MetodosPagos
@@ -670,6 +771,7 @@ const registrarVenta = async () => {
             resetTrigger={resetPagoTrigger}
           />
         </div>
+
         <div className="col-md-6 d-flex flex-column justify-content-between">
           <div className="bg-light p-3 rounded shadow-sm h-100">
             <div className="mb-2">
@@ -683,6 +785,7 @@ const registrarVenta = async () => {
                 <strong>Total:</strong> L {total.toFixed(2)}
               </h5>
             </div>
+
             <Button
               variant="success"
               size="lg"
@@ -695,10 +798,10 @@ const registrarVenta = async () => {
         </div>
       </div>
 
-      {/* ===== MODAL FACTURA ===== */}
+      {/* MODAL VENTA REGISTRADA (imprime recibo + entrega opcional) */}
       <Modal
         show={modal.show}
-        onHide={() => setModal({ show: false })}
+        onHide={() => setModal((m) => ({ ...m, show: false }))}
         centered
       >
         <Modal.Body className="text-center py-4">
@@ -713,24 +816,43 @@ const registrarVenta = async () => {
           )}
 
           <h5
-            className={`mb-2 fw-bold ${
-              modal.type === "success" ? "text-success" : "text-danger"
-            }`}
+            className={`mb-2 fw-bold ${modal.type === "success" ? "text-success" : "text-danger"}`}
           >
             {modal.title}
           </h5>
 
           <div className="mb-3 text-muted">{modal.message}</div>
 
-          <div className="d-flex justify-content-center align-items-center flex-wrap gap-3">
+          {/* ✅ Opción entrega (solo si aplica) */}
+          {modal.type === "success" && modal.mostrarEntrega && (
+            <div className="text-start mx-auto" style={{ maxWidth: 360 }}>
+              <FormCheck
+                type="switch"
+                id="switch-print-entrega"
+                label="Imprimir comprobante de entrega (Carta)"
+                checked={modal.imprimirEntrega}
+                onChange={(e) =>
+                  setModal((m) => ({ ...m, imprimirEntrega: e.target.checked }))
+                }
+              />
+              <small className="text-muted">
+                Aparece si hay dirección o seleccionaste Entrega / Envío.
+              </small>
+            </div>
+          )}
+
+          <div className="d-flex justify-content-center align-items-center flex-wrap gap-3 mt-3">
             {modal.type === "success" && (
-              <Button variant="primary" onClick={imprimirRecibo}>
-                Imprimir Recibo
+              <Button variant="primary" onClick={imprimirSegunSeleccion}>
+                {modal.mostrarEntrega && modal.imprimirEntrega
+                  ? "Imprimir Recibo + Entrega"
+                  : "Imprimir Recibo"}
               </Button>
             )}
+
             <Button
               variant="secondary"
-              onClick={() => setModal({ show: false })}
+              onClick={() => setModal((m) => ({ ...m, show: false }))}
             >
               Cerrar
             </Button>
@@ -738,53 +860,88 @@ const registrarVenta = async () => {
         </Modal.Body>
       </Modal>
 
-      {/* ===== MODAL AGREGAR CLIENTE ===== */}
+      {/* MODAL FEEDBACK (errores) */}
+      <Modal
+        show={feedbackModal.show}
+        onHide={() => setFeedbackModal((f) => ({ ...f, show: false }))}
+        centered
+      >
+        <Modal.Body className="text-center py-4">
+          <BsExclamationTriangleFill
+            size={64}
+            color="#dc3545"
+            className="mb-3"
+          />
+          <h5 className="text-danger fw-bold mb-3">Atención</h5>
+          <p className="text-muted mb-3">{feedbackModal.message}</p>
+          <Button
+            variant="secondary"
+            onClick={() => setFeedbackModal((f) => ({ ...f, show: false }))}
+          >
+            Cerrar
+          </Button>
+        </Modal.Body>
+      </Modal>
+
+      {/* MODAL CLIENTE RÁPIDO */}
       <Modal show={modalCliente} onHide={handleCerrarModalCliente} centered>
         <Modal.Header closeButton>
           <Modal.Title>Nuevo Cliente</Modal.Title>
         </Modal.Header>
+
         <Modal.Body>
           <Form.Group className="mb-3">
             <Form.Label>Nombre</Form.Label>
             <Form.Control
               value={formularioCliente.nombre}
               onChange={(e) =>
-                setFormularioCliente({
-                  ...formularioCliente,
-                  nombre: e.target.value,
-                })
+                setFormularioCliente((f) => ({ ...f, nombre: e.target.value }))
               }
               placeholder="Nombre del cliente"
               autoFocus
             />
           </Form.Group>
+
           <Form.Group className="mb-3">
             <Form.Label>RTN</Form.Label>
             <Form.Control
               value={formularioCliente.rtn}
               onChange={(e) =>
-                setFormularioCliente({
-                  ...formularioCliente,
-                  rtn: e.target.value,
-                })
+                setFormularioCliente((f) => ({ ...f, rtn: e.target.value }))
               }
               placeholder="RTN"
             />
           </Form.Group>
+
+          <Form.Group className="mb-3">
+            <Form.Label>Teléfono</Form.Label>
+            <Form.Control
+              value={formularioCliente.telefono}
+              onChange={(e) =>
+                setFormularioCliente((f) => ({
+                  ...f,
+                  telefono: e.target.value,
+                }))
+              }
+              placeholder="Ej: 9999-9999"
+            />
+          </Form.Group>
+
           <Form.Group className="mb-3">
             <Form.Label>Dirección</Form.Label>
             <Form.Control
               value={formularioCliente.direccion}
               onChange={(e) =>
-                setFormularioCliente({
-                  ...formularioCliente,
+                setFormularioCliente((f) => ({
+                  ...f,
                   direccion: e.target.value,
-                })
+                }))
               }
               placeholder="Dirección"
             />
           </Form.Group>
         </Modal.Body>
+
         <Modal.Footer>
           <Button variant="secondary" onClick={handleCerrarModalCliente}>
             Cancelar
@@ -794,6 +951,8 @@ const registrarVenta = async () => {
           </Button>
         </Modal.Footer>
       </Modal>
+
+      {/* MODAL SIN CAI */}
       <Modal show={modalSinCai} onHide={() => setModalSinCai(false)} centered>
         <Modal.Body className="text-center py-4">
           <BsExclamationTriangleFill
@@ -812,6 +971,7 @@ const registrarVenta = async () => {
         </Modal.Body>
       </Modal>
 
+      {/* TOAST */}
       {toast.show && (
         <div
           className="position-fixed bottom-0 end-0 p-3"
@@ -821,52 +981,6 @@ const registrarVenta = async () => {
             <div className="toast-body">{toast.message}</div>
           </div>
         </div>
-      )}
-      {feedbackModal.show && (
-        <Modal
-          show={modal.show}
-          onHide={() => setModal({ ...modal, show: false })}
-          centered
-        >
-          <Modal.Body className="text-center py-4">
-            {modal.type === "success" ? (
-              <BsCheckCircleFill size={64} color="#198754" className="mb-3" />
-            ) : (
-              <BsExclamationTriangleFill
-                size={64}
-                color="#dc3545"
-                className="mb-3"
-              />
-            )}
-
-            <h5
-              className={`mb-2 fw-bold ${
-                modal.type === "success" ? "text-success" : "text-danger"
-              }`}
-            >
-              {modal.title}
-            </h5>
-
-            <div className="mb-3 text-muted">{modal.message}</div>
-
-            <div className="d-flex justify-content-center align-items-center flex-wrap gap-3">
-              {modal.type === "success" && (
-                <Button
-                  variant="primary"
-                  onClick={() => generarReciboPDF(modal.dataRecibo)}
-                >
-                  🧾 Imprimir Recibo
-                </Button>
-              )}
-              <Button
-                variant="secondary"
-                onClick={() => setModal({ ...modal, show: false })}
-              >
-                Cerrar
-              </Button>
-            </div>
-          </Modal.Body>
-        </Modal>
       )}
     </div>
   );

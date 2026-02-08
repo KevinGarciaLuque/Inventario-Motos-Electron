@@ -73,6 +73,9 @@
     }
   }
 
+
+  Raiz del Proyecto
+
 🧩 Comando para empacar:
    npx electron-builder
 

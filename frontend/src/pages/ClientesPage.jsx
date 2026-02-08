@@ -10,7 +10,7 @@ import {
 import { FaEdit, FaTrash, FaSyncAlt } from "react-icons/fa";
 import { CheckCircleFill, XCircleFill } from "react-bootstrap-icons";
 import api from "../../api/axios";
-import ConfirmDeleteModal from "..//components/ConfirmDeleteModal"; // <-- Usa tu modal reutilizable
+import ConfirmDeleteModal from "..//components/ConfirmDeleteModal";
 
 export default function ClientesPage() {
   const [clientes, setClientes] = useState([]);
@@ -18,20 +18,21 @@ export default function ClientesPage() {
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(false);
   const [editando, setEditando] = useState(false);
+
   const [formulario, setFormulario] = useState({
     id: null,
     nombre: "",
     rtn: "",
     direccion: "",
+    telefono: "",
   });
 
-  // --- Estado para confirmación de eliminación ---
   const [deleteConfirm, setDeleteConfirm] = useState({
     show: false,
     clienteId: null,
     nombre: "",
   });
-  // --- Estado para toast de feedback ---
+
   const [toast, setToast] = useState({
     show: false,
     message: "",
@@ -61,15 +62,41 @@ export default function ClientesPage() {
 
   const handleGuardar = async () => {
     try {
-      if (editando) {
-        await api.put(`/clientes/${formulario.id}`, formulario);
-      } else {
-        await api.post("/clientes", formulario);
+      const payload = {
+        ...formulario,
+        // opcional: limpiar espacios
+        nombre: (formulario.nombre || "").trim(),
+        rtn: (formulario.rtn || "").trim(),
+        direccion: (formulario.direccion || "").trim(),
+        telefono: (formulario.telefono || "").trim(),
+      };
+
+      if (!payload.nombre) {
+        setToast({
+          show: true,
+          message: "El nombre es obligatorio.",
+          variant: "danger",
+        });
+        return;
       }
+
+      if (editando) {
+        await api.put(`/clientes/${payload.id}`, payload);
+      } else {
+        await api.post("/clientes", payload);
+      }
+
       setModal(false);
-      setFormulario({ id: null, nombre: "", rtn: "", direccion: "" });
+      setFormulario({
+        id: null,
+        nombre: "",
+        rtn: "",
+        direccion: "",
+        telefono: "",
+      });
       setEditando(false);
       obtenerClientes();
+
       setToast({
         show: true,
         message: "Cliente guardado correctamente.",
@@ -86,12 +113,17 @@ export default function ClientesPage() {
   };
 
   const handleEditar = (cliente) => {
-    setFormulario(cliente);
+    setFormulario({
+      id: cliente.id ?? null,
+      nombre: cliente.nombre ?? "",
+      rtn: cliente.rtn ?? "",
+      direccion: cliente.direccion ?? "",
+      telefono: cliente.telefono ?? "",
+    });
     setEditando(true);
     setModal(true);
   };
 
-  // --- Confirmación de eliminar ---
   const askDelete = (clienteId, nombre) =>
     setDeleteConfirm({ show: true, clienteId, nombre });
 
@@ -99,6 +131,7 @@ export default function ClientesPage() {
     const id = deleteConfirm.clienteId;
     setDeleteConfirm({ show: false, clienteId: null, nombre: "" });
     if (!id) return;
+
     try {
       await api.delete(`/clientes/${id}`);
       setToast({
@@ -120,25 +153,41 @@ export default function ClientesPage() {
   };
 
   const toggleActivo = async (id) => {
-    await api.patch(`/clientes/toggle/${id}`);
-    obtenerClientes();
+    try {
+      await api.patch(`/clientes/toggle/${id}`);
+      obtenerClientes();
+    } catch (err) {
+      setToast({
+        show: true,
+        message: "No se pudo cambiar el estado.",
+        variant: "danger",
+      });
+    }
   };
 
   const handleCerrarModal = () => {
     setModal(false);
-    setFormulario({ id: null, nombre: "", rtn: "", direccion: "" });
+    setFormulario({
+      id: null,
+      nombre: "",
+      rtn: "",
+      direccion: "",
+      telefono: "",
+    });
     setEditando(false);
   };
 
   const clientesFiltrados = clientes.filter((c) =>
-    `${c.nombre} ${c.rtn}`.toLowerCase().includes(filtro.toLowerCase())
+    `${c.nombre || ""} ${c.rtn || ""} ${c.telefono || ""}`
+      .toLowerCase()
+      .includes(filtro.toLowerCase()),
   );
 
   useEffect(() => {
     if (toast.show) {
       const timer = setTimeout(
         () => setToast((t) => ({ ...t, show: false })),
-        3000
+        3000,
       );
       return () => clearTimeout(timer);
     }
@@ -150,7 +199,7 @@ export default function ClientesPage() {
 
       <InputGroup className="mb-3">
         <Form.Control
-          placeholder="Buscar por nombre o RTN"
+          placeholder="Buscar por nombre, RTN o teléfono"
           value={filtro}
           onChange={(e) => setFiltro(e.target.value)}
         />
@@ -191,7 +240,7 @@ export default function ClientesPage() {
         </Modal.Body>
       </Modal>
 
-      {/* Modal confirmación eliminar (reutilizable) */}
+      {/* Modal confirmación eliminar */}
       <ConfirmDeleteModal
         show={deleteConfirm.show}
         onHide={() =>
@@ -219,10 +268,10 @@ export default function ClientesPage() {
           className="bg-white shadow-sm rounded mb-4"
           style={{
             maxHeight: "400px",
-            height: "400px", // 🔥 Altura para scroll vertical
+            height: "400px",
             overflowY: "auto",
-            overflowX: "auto", // 🔁 Scroll horizontal para móviles
-            border: "1px solid #dee2e6", // 🧱 Borde visual
+            overflowX: "auto",
+            border: "1px solid #dee2e6",
           }}
         >
           <Table
@@ -231,13 +280,14 @@ export default function ClientesPage() {
             hover
             responsive
             className="sticky-header mb-0"
-            style={{ minWidth: 700 }}
+            style={{ minWidth: 860 }}
           >
             <thead className="table-light sticky-top">
               <tr>
                 <th>Nombre</th>
                 <th>RTN</th>
                 <th>Dirección</th>
+                <th>Teléfono</th>
                 <th>Estado</th>
                 <th>Acciones</th>
               </tr>
@@ -248,10 +298,11 @@ export default function ClientesPage() {
                   <td>{cliente.nombre}</td>
                   <td>{cliente.rtn}</td>
                   <td>{cliente.direccion}</td>
+                  <td>{cliente.telefono || "-"}</td>
                   <td>
                     <Form.Check
                       type="switch"
-                      checked={cliente.activo}
+                      checked={!!cliente.activo}
                       onChange={() => toggleActivo(cliente.id)}
                       label={cliente.activo ? "Activo" : "Inactivo"}
                     />
@@ -280,13 +331,14 @@ export default function ClientesPage() {
         </div>
       )}
 
-      {/* Modal para crear/editar cliente */}
+      {/* Modal crear/editar */}
       <Modal show={modal} onHide={handleCerrarModal} centered>
         <Modal.Header closeButton>
           <Modal.Title>
             {editando ? "Editar Cliente" : "Nuevo Cliente"}
           </Modal.Title>
         </Modal.Header>
+
         <Modal.Body>
           <Form.Group className="mb-3">
             <Form.Label>Nombre</Form.Label>
@@ -299,6 +351,7 @@ export default function ClientesPage() {
               autoFocus
             />
           </Form.Group>
+
           <Form.Group className="mb-3">
             <Form.Label>RTN</Form.Label>
             <Form.Control
@@ -309,6 +362,7 @@ export default function ClientesPage() {
               placeholder="RTN"
             />
           </Form.Group>
+
           <Form.Group className="mb-3">
             <Form.Label>Dirección</Form.Label>
             <Form.Control
@@ -319,7 +373,23 @@ export default function ClientesPage() {
               placeholder="Dirección"
             />
           </Form.Group>
+
+          <Form.Group className="mb-3">
+            <Form.Label>Teléfono</Form.Label>
+            <Form.Control
+              type="tel"
+              value={formulario.telefono}
+              onChange={(e) =>
+                setFormulario({ ...formulario, telefono: e.target.value })
+              }
+              placeholder="Ej: 9999-9999"
+            />
+            <Form.Text className="text-muted">
+              Opcional, pero recomendado para comprobantes de entrega.
+            </Form.Text>
+          </Form.Group>
         </Modal.Body>
+
         <Modal.Footer>
           <Button variant="secondary" onClick={handleCerrarModal}>
             Cancelar

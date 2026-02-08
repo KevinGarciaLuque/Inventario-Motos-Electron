@@ -30,7 +30,7 @@ router.get("/", async (req, res) => {
 
 // ➕ Crear cliente nuevo
 router.post("/", async (req, res) => {
-  const { nombre, rtn, direccion } = req.body;
+  const { nombre, rtn, direccion, telefono } = req.body;
   try {
     const [existe] = await db.query("SELECT id FROM clientes WHERE rtn = ?", [
       rtn,
@@ -42,10 +42,10 @@ router.post("/", async (req, res) => {
     }
 
     const [resultado] = await db.query(
-      "INSERT INTO clientes (nombre, rtn, direccion) VALUES (?, ?, ?)",
-      [nombre, rtn, direccion]
+      "INSERT INTO clientes (nombre, rtn, direccion, telefono) VALUES (?, ?, ?, ?)",
+      [nombre, rtn, direccion, telefono]
     );
-    res.json({ id: resultado.insertId, nombre, rtn, direccion });
+    res.json({ id: resultado.insertId, nombre, rtn, direccion, telefono,});
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Error al crear cliente" });
@@ -54,11 +54,11 @@ router.post("/", async (req, res) => {
 
 // ✏️ Editar cliente
 router.put("/:id", async (req, res) => {
-  const { nombre, rtn, direccion } = req.body;
+  const { nombre, rtn, direccion, telefono } = req.body;
   try {
     const [resultado] = await db.query(
-      "UPDATE clientes SET nombre = ?, rtn = ?, direccion = ? WHERE id = ?",
-      [nombre, rtn, direccion, req.params.id]
+      "UPDATE clientes SET nombre = ?, rtn = ?, direccion = ?, telefono = ? WHERE id = ?",
+      [nombre, rtn, direccion, telefono, req.params.id]
     );
     res.json({ message: "Cliente actualizado correctamente" });
   } catch (err) {

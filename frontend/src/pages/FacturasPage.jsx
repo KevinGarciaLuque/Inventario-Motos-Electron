@@ -1,74 +1,155 @@
-import React, { useEffect, useState } from "react";
-import { Table, Form, InputGroup, Button, Modal } from "react-bootstrap";
-import { FaBroom, FaPrint, FaEye } from "react-icons/fa";
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  Table,
+  Form,
+  InputGroup,
+  Button,
+  Modal,
+  Spinner,
+} from "react-bootstrap";
+import { FaBroom, FaPrint, FaEye, FaTruck } from "react-icons/fa";
 import api from "../../api/axios";
-import generarReciboPDF from "../utils/generarReciboPDF"; // Ajusta el path según tu proyecto
+
+import generarReciboPDF from "../utils/generarReciboPDF";
+import generarComprobanteEntregaPDF from "../utils/generarComprobanteEntregaPDF"; // ✅ util Carta
 
 export default function FacturasPage() {
   const [facturas, setFacturas] = useState([]);
   const [busqueda, setBusqueda] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  // Estados para la vista previa de la factura
+  // Vista previa
   const [showVista, setShowVista] = useState(false);
   const [facturaVista, setFacturaVista] = useState(null);
+
+  // Modal informativo (para errores o cuando no aplica entrega)
+  const [modalInfo, setModalInfo] = useState({
+    show: false,
+    title: "Atención",
+    message: "",
+  });
 
   useEffect(() => {
     cargarFacturas();
   }, []);
 
   const cargarFacturas = async () => {
+    setLoading(true);
     try {
       const res = await api.get("/facturas");
-      setFacturas(res.data);
+      setFacturas(res.data || []);
     } catch (err) {
       console.error(err);
+      setFacturas([]);
+      setModalInfo({
+        show: true,
+        title: "Error",
+        message: "No se pudieron cargar las facturas.",
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
-  const filtradas = facturas.filter(
-    (f) =>
-      f.numero_factura.toLowerCase().includes(busqueda.toLowerCase()) ||
-      f.cai_codigo.toLowerCase().includes(busqueda.toLowerCase())
-  );
+  const filtradas = useMemo(() => {
+    const b = (busqueda || "").toLowerCase().trim();
+    if (!b) return facturas;
 
-  // Botón imprimir
-  // Botón imprimir
-  const manejarImpresion = async (factura) => {
+    return facturas.filter((f) => {
+      const num = String(f.numero_factura || "").toLowerCase();
+      const cai = String(f.cai_codigo || "").toLowerCase();
+      return num.includes(b) || cai.includes(b);
+    });
+  }, [facturas, busqueda]);
+
+  const construirPayloadPDF = (datosFactura, esCopia = true) => ({
+    numeroFactura: datosFactura.numero_factura,
+    carrito: datosFactura.carrito || [],
+    subtotal: Number(datosFactura.subtotal) || 0,
+    impuesto: Number(datosFactura.impuesto) || 0,
+    total: Number(datosFactura.total) || 0,
+    user: datosFactura.user,
+    cai: datosFactura.cai,
+    cliente_nombre: datosFactura.cliente_nombre || "Consumidor Final",
+    cliente_rtn: datosFactura.cliente_rtn || "",
+    cliente_direccion: datosFactura.cliente_direccion || "",
+    cliente_telefono: datosFactura.cliente_telefono || "", // ✅ si ya lo guardas
+    metodoPago: datosFactura.metodo_pago || "efectivo",
+    efectivo: Number(datosFactura.efectivo) || 0,
+    cambio: Number(datosFactura.cambio) || 0,
+    esCopia,
+  });
+
+  // ✅ Imprimir recibo (copia)
+  const imprimirReciboCopia = async (factura) => {
     try {
       const res = await api.get(`/facturas/${factura.id}`);
       const datosFactura = res.data;
 
-      generarReciboPDF({
-        numeroFactura: datosFactura.numero_factura,
-        carrito: datosFactura.carrito,
-        subtotal: Number(datosFactura.subtotal) || 0,
-        impuesto: Number(datosFactura.impuesto) || 0,
-        total: Number(datosFactura.total) || 0,
-        user: datosFactura.user,
-        cai: datosFactura.cai,
-        cliente_nombre: datosFactura.cliente_nombre || "Consumidor Final",
-        cliente_rtn: datosFactura.cliente_rtn || "",
-        cliente_direccion: datosFactura.cliente_direccion || "",
-        metodoPago: datosFactura.metodo_pago || "efectivo",
-        efectivo: Number(datosFactura.efectivo) || 0,
-        cambio: Number(datosFactura.cambio) || 0,
-        esCopia: true, // ✅ Se imprimirá como copia
-      });
+      generarReciboPDF(construirPayloadPDF(datosFactura, true));
     } catch (error) {
       console.error("Error al generar el PDF:", error);
+      setModalInfo({
+        show: true,
+        title: "Error",
+        message: "No se pudo generar el recibo en PDF.",
+      });
     }
   };
 
-  // Botón vista previa
+  // ✅ Imprimir comprobante de entrega (copia) – Carta
+  const imprimirEntregaCopia = async (factura) => {
+    try {
+      const res = await api.get(`/facturas/${factura.id}`);
+      const datosFactura = res.data;
+
+      const direccion = String(datosFactura.cliente_direccion || "").trim();
+      const flagEntrega = Number(datosFactura.es_entrega || 0) === 1;
+
+      const aplicaEntrega = direccion.length > 0 || flagEntrega;
+
+      if (!aplicaEntrega) {
+        setModalInfo({
+          show: true,
+          title: "No aplica comprobante de entrega",
+          message:
+            "Esta factura no tiene dirección registrada y no está marcada como entrega/envío.",
+        });
+        return;
+      }
+
+      const payload = construirPayloadPDF(datosFactura, true);
+
+      generarComprobanteEntregaPDF({
+        ...payload,
+        observaciones: "Recibí conforme la mercadería descrita.",
+        esCopia: true,
+      });
+    } catch (error) {
+      console.error("Error al generar el comprobante:", error);
+      setModalInfo({
+        show: true,
+        title: "Error",
+        message: "No se pudo generar el comprobante de entrega.",
+      });
+    }
+  };
+
+  // Vista previa
   const verFactura = async (factura) => {
     try {
       const res = await api.get(`/facturas/${factura.id}`);
       setFacturaVista(res.data);
       setShowVista(true);
     } catch (err) {
+      console.error(err);
       setFacturaVista(null);
       setShowVista(false);
-      alert("Error al cargar la factura para vista previa.");
+      setModalInfo({
+        show: true,
+        title: "Error",
+        message: "Error al cargar la factura para vista previa.",
+      });
     }
   };
 
@@ -80,7 +161,7 @@ export default function FacturasPage() {
         <Form.Control
           placeholder="Buscar por número de factura o CAI..."
           value={busqueda}
-          onChange={(e) => setBusqueda(e.target.value)}
+          onChange={(e) => setBusqedaSafe(setBusqueda, e.target.value)}
         />
         <Button
           variant="warning"
@@ -90,16 +171,20 @@ export default function FacturasPage() {
         >
           <FaBroom className="me-2" /> Limpiar
         </Button>
+
+        <Button variant="outline-secondary" onClick={cargarFacturas}>
+          Recargar
+        </Button>
       </InputGroup>
 
       <div
         className="bg-white shadow-sm rounded mb-4"
         style={{
           maxHeight: "400px",
-          height: "300px", // 🔥 Altura fija para scroll vertical
+          height: "320px",
           overflowY: "auto",
-          overflowX: "auto", // 🔁 Scroll horizontal en celular
-          border: "1px solid #dee2e6", // 🧱 Opcional para claridad visual
+          overflowX: "auto",
+          border: "1px solid #dee2e6",
         }}
       >
         <Table
@@ -107,7 +192,7 @@ export default function FacturasPage() {
           bordered
           hover
           className="mb-0 sticky-header"
-          style={{ minWidth: "800px" }} // ⬅️ Ancho mínimo para scroll horizontal
+          style={{ minWidth: "980px" }}
         >
           <thead className="table-primary sticky-top">
             <tr>
@@ -115,39 +200,69 @@ export default function FacturasPage() {
               <th>Número Factura</th>
               <th>CAI</th>
               <th>Fecha</th>
-              <th>Total (ISV)</th>
-
-              <th>Acción</th>
+              <th>Total</th>
+              <th style={{ width: 330 }}>Acciones</th>
             </tr>
           </thead>
+
           <tbody>
-            {filtradas.map((f, index) => (
-              <tr key={f.id}>
-                <td>{index + 1}</td>
-                <td>{f.numero_factura}</td>
-                <td>{f.cai_codigo}</td>
-                <td>{new Date(f.fecha_emision).toLocaleString("es-HN")}</td>
-                <td>{parseFloat(f.total_factura).toFixed(2)} Lps</td>
-                <td>
-                  <Button
-                    variant="info"
-                    size="sm"
-                    className="me-2"
-                    title="Vista previa"
-                    onClick={() => verFactura(f)}
-                  >
-                    <FaEye />
-                  </Button>
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    onClick={() => manejarImpresion(f)}
-                  >
-                    <FaPrint className="me-1" /> Imprimir
-                  </Button>
+            {loading ? (
+              <tr>
+                <td colSpan={6} className="text-center py-4">
+                  <Spinner animation="border" />
                 </td>
               </tr>
-            ))}
+            ) : filtradas.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="text-center py-4 text-muted">
+                  No hay facturas para mostrar.
+                </td>
+              </tr>
+            ) : (
+              filtradas.map((f, index) => (
+                <tr key={f.id}>
+                  <td>{index + 1}</td>
+                  <td>{f.numero_factura}</td>
+                  <td>{f.cai_codigo}</td>
+                  <td>
+                    {f.fecha_emision
+                      ? new Date(f.fecha_emision).toLocaleString("es-HN")
+                      : "-"}
+                  </td>
+                  <td>{Number(f.total_factura || 0).toFixed(2)} Lps</td>
+                  <td>
+                    <Button
+                      variant="info"
+                      size="sm"
+                      className="me-2"
+                      title="Vista previa"
+                      onClick={() => verFactura(f)}
+                    >
+                      <FaEye />
+                    </Button>
+
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      className="me-2"
+                      title="Imprimir Recibo (Copia)"
+                      onClick={() => imprimirReciboCopia(f)}
+                    >
+                      <FaPrint className="me-1" /> Recibo
+                    </Button>
+
+                    <Button
+                      variant="outline-primary"
+                      size="sm"
+                      title="Imprimir Entrega (Copia)"
+                      onClick={() => imprimirEntregaCopia(f)}
+                    >
+                      <FaTruck className="me-1" /> Entrega
+                    </Button>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </Table>
       </div>
@@ -162,21 +277,25 @@ export default function FacturasPage() {
         <Modal.Header closeButton>
           <Modal.Title>Vista previa de factura</Modal.Title>
         </Modal.Header>
+
         <Modal.Body>
           {facturaVista ? (
             <div>
-              <h5>
+              <h5 className="mb-2">
                 Factura #{facturaVista.numero_factura} |{" "}
                 {facturaVista.cliente_nombre}
               </h5>
 
               <div className="mb-2">
                 <b>Fecha:</b>{" "}
-                {new Date(facturaVista.fecha_emision).toLocaleString()}
+                {facturaVista.fecha_emision
+                  ? new Date(facturaVista.fecha_emision).toLocaleString("es-HN")
+                  : "-"}
               </div>
 
-              <div>
+              <div className="mb-2">
                 <b>RTN:</b> {facturaVista.cliente_rtn || "N/A"} <br />
+                <b>Teléfono:</b> {facturaVista.cliente_telefono || "N/A"} <br />
                 <b>Dirección:</b> {facturaVista.cliente_direccion || "N/A"}
               </div>
 
@@ -184,25 +303,24 @@ export default function FacturasPage() {
 
               <div>
                 <b>Detalle:</b>
-                <ul>
-                  {facturaVista.carrito &&
-                    facturaVista.carrito.map((item, idx) => (
-                      <li key={idx}>
-                        {item.nombre} x {item.cantidad} &mdash; Lps{" "}
-                        {parseFloat(item.precio).toFixed(2)}
-                      </li>
-                    ))}
+                <ul className="mb-0">
+                  {(facturaVista.carrito || []).map((item, idx) => (
+                    <li key={idx}>
+                      {item.nombre} x {item.cantidad} — Lps{" "}
+                      {Number(item.precio || 0).toFixed(2)}
+                    </li>
+                  ))}
                 </ul>
               </div>
 
-              <div className="mt-2">
+              <div className="mt-3">
                 <b>Subtotal:</b> Lps{" "}
-                {parseFloat(facturaVista.subtotal).toFixed(2)} <br />
+                {Number(facturaVista.subtotal || 0).toFixed(2)} <br />
                 <b>Impuesto:</b> Lps{" "}
-                {parseFloat(facturaVista.impuesto).toFixed(2)} <br />
+                {Number(facturaVista.impuesto || 0).toFixed(2)} <br />
                 <b>Total:</b>{" "}
                 <span className="fw-bold">
-                  Lps {parseFloat(facturaVista.total).toFixed(2)}
+                  Lps {Number(facturaVista.total || 0).toFixed(2)}
                 </span>
               </div>
 
@@ -212,9 +330,9 @@ export default function FacturasPage() {
                 <div className="mt-2">
                   <b>Método de pago:</b> Efectivo <br />
                   <b>Efectivo recibido:</b> Lps{" "}
-                  {parseFloat(facturaVista.efectivo).toFixed(2)} <br />
+                  {Number(facturaVista.efectivo || 0).toFixed(2)} <br />
                   <b>Cambio entregado:</b> Lps{" "}
-                  {parseFloat(facturaVista.cambio).toFixed(2)}
+                  {Number(facturaVista.cambio || 0).toFixed(2)}
                 </div>
               )}
 
@@ -225,7 +343,7 @@ export default function FacturasPage() {
               )}
             </div>
           ) : (
-            <div>No se pudo cargar la factura.</div>
+            <div className="text-muted">No se pudo cargar la factura.</div>
           )}
         </Modal.Body>
 
@@ -235,6 +353,29 @@ export default function FacturasPage() {
           </Button>
         </Modal.Footer>
       </Modal>
+
+      {/* Modal informativo */}
+      <Modal
+        show={modalInfo.show}
+        onHide={() => setModalInfo((m) => ({ ...m, show: false }))}
+        centered
+      >
+        <Modal.Body className="text-center py-4">
+          <h5 className="fw-bold mb-3">{modalInfo.title}</h5>
+          <p className="text-muted mb-3">{modalInfo.message}</p>
+          <Button
+            variant="secondary"
+            onClick={() => setModalInfo((m) => ({ ...m, show: false }))}
+          >
+            Cerrar
+          </Button>
+        </Modal.Body>
+      </Modal>
     </div>
   );
+}
+
+// Helper pequeño para evitar warnings si vienen valores raros
+function setBusqedaSafe(setter, value) {
+  setter(typeof value === "string" ? value : String(value ?? ""));
 }

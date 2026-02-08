@@ -1,8 +1,8 @@
 version: 2.0.0
 files:
   - url: Inventario-Setup-2.0.0.exe
-    sha512: ZUlXZnhlpSSN1d1i+UWAG7vziwW43P+0j67frOw/OBrnpzZnYDa6JgiBlrx/Hop8kyVJa9MAszTAujXZKwbFKA==
-    size: 84455996
+    sha512: ORholjxKm+I6sMZBfknhU0oGHzBJw6gRoBKfMB0qygFiP6lSnmucEvOr72tq2Xhf40pviEq6wEJgrp/2R7IKgw==
+    size: 84456174
 path: Inventario-Setup-2.0.0.exe
-sha512: ZUlXZnhlpSSN1d1i+UWAG7vziwW43P+0j67frOw/OBrnpzZnYDa6JgiBlrx/Hop8kyVJa9MAszTAujXZKwbFKA==
-releaseDate: '2025-08-03T05:14:32.330Z'
+sha512: ORholjxKm+I6sMZBfknhU0oGHzBJw6gRoBKfMB0qygFiP6lSnmucEvOr72tq2Xhf40pviEq6wEJgrp/2R7IKgw==
+releaseDate: '2025-08-06T04:08:49.686Z'
