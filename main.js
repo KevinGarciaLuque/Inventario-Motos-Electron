@@ -19,11 +19,13 @@ function createWindow() {
 app.whenReady().then(() => {
   // ✅ Ruta fija: fuera del instalador
   const backendExePath = "C:\\Inventario\\backend\\inventario-backend.exe";
+  const backendDir = path.dirname(backendExePath);
 
   console.log("⏳ Iniciando backend:", backendExePath);
 
   try {
     backendProcess = spawn(backendExePath, [], {
+      cwd: backendDir,
       detached: true,
       stdio: "ignore",
     });

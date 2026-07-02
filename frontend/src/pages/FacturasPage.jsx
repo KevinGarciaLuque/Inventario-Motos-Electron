@@ -77,6 +77,7 @@ export default function FacturasPage() {
     metodoPago: datosFactura.metodo_pago || "efectivo",
     efectivo: Number(datosFactura.efectivo) || 0,
     cambio: Number(datosFactura.cambio) || 0,
+    montoTarjeta: Number(datosFactura.monto_tarjeta) || 0,
     esCopia,
   });
 
@@ -339,6 +340,18 @@ export default function FacturasPage() {
               {facturaVista.metodo_pago === "tarjeta" && (
                 <div className="mt-2">
                   <b>Método de pago:</b> Tarjeta
+                </div>
+              )}
+
+              {facturaVista.metodo_pago === "mixto" && (
+                <div className="mt-2">
+                  <b>Método de pago:</b> Mixto <br />
+                  <b>Pago con tarjeta:</b> Lps{" "}
+                  {Number(facturaVista.monto_tarjeta || 0).toFixed(2)} <br />
+                  <b>Efectivo recibido:</b> Lps{" "}
+                  {Number(facturaVista.efectivo || 0).toFixed(2)} <br />
+                  <b>Cambio entregado:</b> Lps{" "}
+                  {Number(facturaVista.cambio || 0).toFixed(2)}
                 </div>
               )}
             </div>

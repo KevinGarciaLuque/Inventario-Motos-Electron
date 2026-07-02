@@ -94,8 +94,8 @@ nsis:
       !insertmacro MUI_LANGUAGE "Vietnamese"
     !macroend
 
-    !include "C:\Users\kevin\AppData\Local\Temp\t-h80Ify\2-messages.nsh"
-    !include "C:\Users\kevin\AppData\Local\Temp\t-h80Ify\3-messages.nsh"
+    !include "C:\Users\kevin\AppData\Local\Temp\t-tP8kmW\2-messages.nsh"
+    !include "C:\Users\kevin\AppData\Local\Temp\t-tP8kmW\3-messages.nsh"
     !addplugindir /x86-unicode "C:\Users\kevin\AppData\Local\electron-builder\Cache\nsis\nsis-resources-3.4.1\plugins\x86-unicode"
 
     Var newStartMenuLink

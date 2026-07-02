@@ -11,17 +11,25 @@
 1. Asegúrate de tener instalado `pkg`:
    npm install -g pkg
 
-2. Agrega en tu `package.json` del backend (si no está):
-   "bin": "server.js",
+2. El `package.json` del backend ya tiene configurado el target y los assets
+   (sección "pkg": { "targets": ["node18-win-x64"], "assets": [...] }),
+   así que basta con:
 
-3. Compila el backend:
-   pkg . --targets node18-win-x64 --output inventario-backend.exe
+   cd backend
+   pkg .
 
-4. Crea una carpeta en el disco C:
+   Esto genera backend\inventario-backend.exe (ignora los warnings de
+   "Failed to make bytecode" de paquetes como string-width/ansi-styles,
+   son inofensivos).
+
+3. La PRIMERA vez que se instala en una máquina nueva, crea la carpeta:
    C:\Inventario\backend
 
-5. Copia el ejecutable generado:
-   inventario-backend.exe → C:\Inventario\backend\inventario-backend.exe
+   y copia ahí el ejecutable generado + el .env de esa máquina (con las
+   credenciales de SU MySQL local).
+
+4. En actualizaciones posteriores, NO se crea nada nuevo: solo se reemplaza
+   el .exe (ver sección 4️⃣ más abajo).
 
 
 ===========================================
@@ -91,3 +99,86 @@
 - Usa una ruta fija en el disco para evitar problemas de permisos.
 - Puedes crear un .bat para iniciar el backend manualmente si lo deseas.
 - pega la carpeta que esta en la ubicacion del acceso directo en la Raiz del disco C
+
+===========================================
+🖼️ PERSISTENCIA DE IMÁGENES Y DATOS ENTRE VERSIONES
+===========================================
+- Las carpetas `uploads/`, `backups/` y el archivo `backup-config.json` viven
+  junto al ejecutable en C:\Inventario\backend, FUERA del instalador de Electron.
+  Por eso sobreviven automáticamente entre versiones.
+- Al actualizar la app a una nueva versión:
+  ✅ Reemplaza ÚNICAMENTE el archivo inventario-backend.exe
+  ❌ NO borres ni reemplaces la carpeta C:\Inventario\backend completa
+     (eso borraría uploads/, backups/ y la configuración de backup)
+- main.js fija el `cwd` del proceso del backend a C:\Inventario\backend al
+  arrancarlo, para que uploads/.env/backups siempre se resuelvan ahí sin
+  importar desde dónde se lance Electron.
+
+===========================================
+4️⃣ ACTUALIZAR UNA INSTALACIÓN YA EXISTENTE (cliente remoto)
+===========================================
+Orden recomendado, probado por AnyDesk:
+
+1. Generar los artefactos en la máquina de desarrollo:
+   - cd frontend && npm run build
+   - cd backend && pkg .
+   - cd (raíz del proyecto) && npx electron-builder
+   Resultado:
+     - dist-electron\Inventario Setup X.X.X.exe   (instalador de Electron)
+     - backend\inventario-backend.exe             (backend nuevo)
+
+2. Si hubo cambios de base de datos, correr la migración correspondiente
+   (ver carpeta backend\migrations\) contra la BD de esa máquina ANTES de
+   actualizar el backend, usando MySQL Workbench o `mysql < archivo.sql`.
+
+3. Cerrar en el cliente: la ventana de Inventario y, en el Administrador
+   de Tareas, el proceso inventario-backend.exe si quedó corriendo
+   (main.js lo lanza "detached", puede seguir vivo tras cerrar la ventana).
+
+4. Transferir e instalar "Inventario Setup X.X.X.exe" (solo actualiza
+   Inventario.exe / resources\app.asar / locales, NO toca
+   C:\Inventario\backend).
+
+5. Transferir backend\inventario-backend.exe y reemplazar el que está en
+   C:\Inventario\backend\inventario-backend.exe. NO tocar ahí:
+     - .env        (credenciales de MySQL de ESA máquina)
+     - uploads\    (imágenes de productos de ESA máquina)
+     - backups\ y backup-config.json (si ya existían)
+
+6. Volver a abrir Inventario.exe y probar (ej. entrar a "Copias de
+   Seguridad" y darle "Refrescar" / "Generar backup ahora").
+
+⚠️ Problemas comunes al transferir por AnyDesk:
+   - "NSIS Error: Installer integrity check has failed" → el .exe llegó
+     incompleto/dañado en la transferencia (no es un problema del build).
+     Solución: comprimir el .exe en .zip antes de transferir (evita cortes
+     y que el antivirus del cliente lo toque a medio camino), verificar que
+     el tamaño en bytes coincide en ambos lados antes de descomprimir.
+   - Si solo se instala "Inventario Setup" pero no se reemplaza el
+     inventario-backend.exe, el frontend nuevo queda hablando con el
+     backend VIEJO → rutas nuevas (ej. /api/backup/*) responden 404 y la
+     UI muestra errores genéricos ("No se pudo cargar..."). Siempre hay
+     que actualizar frontend Y backend juntos si el cambio tocó el backend.
+
+===========================================
+5️⃣ MIGRACIONES DE BASE DE DATOS
+===========================================
+- Los scripts SQL de cambios de esquema viven en backend\migrations\,
+  nombrados por fecha (ej. 2026-07-02_pago_mixto.sql).
+- Cada vez que se agregue una migración nueva, hay que correrla a mano
+  contra la base de datos de cada máquina cliente (no hay un sistema de
+  migraciones automático todavía). Llevar registro de cuáles máquinas ya
+  la tienen aplicada.
+
+===========================================
+6️⃣ MÓDULOS AGREGADOS (referencia rápida)
+===========================================
+- Copias de Seguridad (backend\backup.js, backend\routes\backup.js,
+  frontend\src\pages\BackupPage.jsx): backup automático programable
+  (día/hora/retención/carpeta destino) + backup manual + restaurar,
+  empaquetando un dump de MySQL (paquete "mysqldump") junto con la
+  carpeta uploads\ en un .zip. Rutas protegidas con JWT + rol admin
+  (backend\middleware\auth.js) — es el único módulo del sistema con esa
+  protección real; el resto de rutas del backend no la tiene.
+- Pago mixto (Efectivo + Tarjeta) en Registrar Venta: agrega la columna
+  monto_tarjeta a ventas y facturas (ver migración 2026-07-02_pago_mixto.sql).

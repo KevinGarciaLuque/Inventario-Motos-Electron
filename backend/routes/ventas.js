@@ -13,6 +13,7 @@ router.post("/", async (req, res) => {
     metodo_pago = "efectivo",
     efectivo = 0,
     cambio = 0,
+    monto_tarjeta = 0,
   } = req.body;
 
   if (!productos || productos.length === 0) {
@@ -68,19 +69,23 @@ router.post("/", async (req, res) => {
     const total_con_impuesto = parseFloat(total.toFixed(2));
 
     // Insertar venta
+    const aplicaEfectivo = metodo_pago === "efectivo" || metodo_pago === "mixto";
+    const aplicaTarjeta = metodo_pago === "tarjeta" || metodo_pago === "mixto";
+
     const [ventaResult] = await connection.query(
       `INSERT INTO ventas (
         total, impuesto, total_con_impuesto,
-        usuario_id, metodo_pago, efectivo, cambio
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        usuario_id, metodo_pago, efectivo, cambio, monto_tarjeta
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         subtotal,
         impuesto,
         total_con_impuesto,
         usuario_id,
         metodo_pago,
-        metodo_pago === "efectivo" ? efectivo : 0,
-        metodo_pago === "efectivo" ? cambio : 0,
+        aplicaEfectivo ? efectivo : 0,
+        aplicaEfectivo ? cambio : 0,
+        aplicaTarjeta ? monto_tarjeta : 0,
       ]
     );
 
@@ -145,8 +150,8 @@ router.post("/", async (req, res) => {
       `INSERT INTO facturas (
         numero_factura, venta_id, cai_id, total_factura,
         cliente_nombre, cliente_rtn, cliente_direccion,
-        metodo_pago, efectivo, cambio
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        metodo_pago, efectivo, cambio, monto_tarjeta
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         numeroFactura,
         venta_id,
@@ -156,8 +161,9 @@ router.post("/", async (req, res) => {
         cliente_rtn,
         cliente_direccion,
         metodo_pago,
-        metodo_pago === "efectivo" ? efectivo : 0,
-        metodo_pago === "efectivo" ? cambio : 0,
+        aplicaEfectivo ? efectivo : 0,
+        aplicaEfectivo ? cambio : 0,
+        aplicaTarjeta ? monto_tarjeta : 0,
       ]
     );
 

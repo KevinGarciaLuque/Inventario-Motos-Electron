@@ -35,7 +35,7 @@ router.get("/:id", async (req, res) => {
       `SELECT 
         f.numero_factura, f.fecha_emision,
         f.cliente_nombre, f.cliente_rtn, f.cliente_direccion,
-        v.id AS venta_id, v.metodo_pago, v.efectivo, v.cambio,
+        v.id AS venta_id, v.metodo_pago, v.efectivo, v.cambio, v.monto_tarjeta,
         u.nombre AS cajero,
         c.cai_codigo, c.rango_inicio, c.rango_fin,
         c.fecha_autorizacion, c.fecha_limite_emision
@@ -59,6 +59,7 @@ router.get("/:id", async (req, res) => {
       metodo_pago: facturaRows[0].metodo_pago ?? "Efectivo",
       efectivo: parseFloat(facturaRows[0].efectivo ?? 0),
       cambio: parseFloat(facturaRows[0].cambio ?? 0),
+      monto_tarjeta: parseFloat(facturaRows[0].monto_tarjeta ?? 0),
     };
 
     // 2. Obtener productos de la factura
@@ -92,6 +93,7 @@ router.get("/:id", async (req, res) => {
       metodo_pago: factura.metodo_pago,
       efectivo: factura.efectivo,
       cambio: factura.cambio,
+      monto_tarjeta: factura.monto_tarjeta,
       user: { nombre: factura.cajero },
       cai: {
         cai_codigo: factura.cai_codigo,

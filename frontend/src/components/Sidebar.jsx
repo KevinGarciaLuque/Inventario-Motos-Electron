@@ -16,6 +16,7 @@ import {
   FaKey,
   FaUser,
   FaQuestionCircle,
+  FaDatabase,
 } from "react-icons/fa";
 import { useUser } from "../context/UserContext";
 import { MdSupportAgent } from "react-icons/md"; // <== Agrega esto
@@ -44,6 +45,7 @@ const allMenuItems = [
   },
   { key: "cai", label: "Control de CAI", icon: <FaKey /> },
   { key: "bitacora", label: "Bitácora", icon: <FaFilter /> },
+  { key: "backups", label: "Copias de Seguridad", icon: <FaDatabase /> },
 ];
 
 const usuarioMenuItems = [

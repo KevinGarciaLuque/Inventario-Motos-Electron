@@ -16,6 +16,7 @@ const generarReciboPDF = ({
   metodoPago = "efectivo",
   efectivo = 0,
   cambio = 0,
+  montoTarjeta = 0,
   esCopia = false,
 }) => {
   const alturaTotal = 150 + carrito.length * 10 + 110;
@@ -46,28 +47,28 @@ const generarReciboPDF = ({
   img.src = logoImage;
 
   const renderPDF = () => {
-    // Logo centrado
-    const logoW = 40;
-    const logoH = 20;
+    // Logo centrado (imagen cuadrada)
+    const logoW = 24;
+    const logoH = 24;
     const logoX = (pageWidth - logoW) / 2;
 
     if (img.complete && img.naturalWidth) {
       doc.addImage(img, "PNG", logoX, posY, logoW, logoH);
     }
-    posY += 25;
+    posY += logoH + 5;
 
     doc.setFont("helvetica", "bold").setFontSize(12);
-    doc.text("MERCADITO", xCenter, posY, { align: "center" });
+    doc.text("MOTOREPUESTOS ", xCenter, posY, { align: "center" });
     posY += 5;
-    doc.text("CRISTIAN", xCenter, posY, { align: "center" });
+    doc.text("Y TALLER JOSE", xCenter, posY, { align: "center" });
     posY += 5;
 
     doc.setFont("helvetica", "normal").setFontSize(9);
     doc.text("Sucursal Tegucigalpa", xCenter, posY, { align: "center" });
     posY += 5;
-    doc.text("RTN: 0801-1900-10000", xCenter, posY, { align: "center" });
+    doc.text("RTN: 0801-1995-116230", xCenter, posY, { align: "center" });
     posY += 5;
-    doc.text("Tel: (504) 9800-0000", xCenter, posY, { align: "center" });
+    doc.text("Tel: (504) 98736249", xCenter, posY, { align: "center" });
     posY += 5;
 
     doc.line(xLeft, posY, xRight, posY);
@@ -196,11 +197,9 @@ const generarReciboPDF = ({
 
     doc.setFont("helvetica", "normal").setFontSize(8);
     const metodo = (metodoPago || "efectivo").toLowerCase();
-    doc.text(
-      `Método de pago: ${metodo === "tarjeta" ? "Tarjeta" : "Efectivo"}`,
-      margenIzq,
-      posY,
-    );
+    const etiquetaMetodo =
+      metodo === "tarjeta" ? "Tarjeta" : metodo === "mixto" ? "Mixto" : "Efectivo";
+    doc.text(`Método de pago: ${etiquetaMetodo}`, margenIzq, posY);
     posY += 4;
 
     if (metodo === "efectivo") {
@@ -209,6 +208,13 @@ const generarReciboPDF = ({
         margenIzq,
         posY,
       );
+      posY += 4;
+      doc.text(`Cambio entregado: ${formatoLempiras(cambio)}`, margenIzq, posY);
+      posY += 4;
+    } else if (metodo === "mixto") {
+      doc.text(`Pago con tarjeta: ${formatoLempiras(montoTarjeta)}`, margenIzq, posY);
+      posY += 4;
+      doc.text(`Pago en efectivo: ${formatoLempiras(efectivo)}`, margenIzq, posY);
       posY += 4;
       doc.text(`Cambio entregado: ${formatoLempiras(cambio)}`, margenIzq, posY);
       posY += 4;

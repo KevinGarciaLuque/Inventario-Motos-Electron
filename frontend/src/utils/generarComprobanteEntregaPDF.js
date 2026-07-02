@@ -43,11 +43,11 @@ const generarComprobanteEntregaPDF = ({
   const render = () => {
     // Encabezado
     if (img.complete && img.naturalWidth) {
-      doc.addImage(img, "PNG", xL, y - 6, 28, 14);
+      doc.addImage(img, "PNG", xL, y - 6, 16, 16);
     }
 
     doc.setFont("helvetica", "bold").setFontSize(14);
-    doc.text("MERCADITO CRISTIAN", xC, y, { align: "center" });
+    doc.text("MOTOREPUESTOS Y TALLER JOSE", xC, y, { align: "center" });
     y += 6;
 
     doc.setFont("helvetica", "normal").setFontSize(9);
@@ -57,7 +57,7 @@ const generarComprobanteEntregaPDF = ({
     y += 5;
 
     doc.setFontSize(8);
-    doc.text("Documento sin validez fiscal", xC, y, { align: "center" });
+    doc.text("", xC, y, { align: "center" });
     y += 6;
 
     if (esCopia) {

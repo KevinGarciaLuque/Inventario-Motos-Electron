@@ -16,6 +16,7 @@ import CaiPage from "../pages/CaiPage";
 import FacturasPage from "../pages/FacturasPage";
 import Soporte from "../components/Soporte";
 import ClientesPage from "../pages/ClientesPage";
+import BackupPage from "../pages/BackupPage";
 
 import "../styles/Layout.css";
 
@@ -100,6 +101,7 @@ export default function Layout({ onLogout }) {
                 {currentPage === "ventas" && <RegistrarVentaPage />}
                 {currentPage === "cai" && <CaiPage />}
                 {currentPage === "facturas" && <FacturasPage />}
+                {currentPage === "backups" && <BackupPage />}
               </div>
             </div>
           </div>

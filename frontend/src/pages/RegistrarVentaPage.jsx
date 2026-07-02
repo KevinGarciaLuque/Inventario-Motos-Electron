@@ -103,6 +103,7 @@ export default function RegistrarVentaPage() {
     metodo_pago: "efectivo",
     efectivo: 0,
     cambio: 0,
+    monto_tarjeta: 0,
     cliente_nombre: "",
     cliente_rtn: "",
     cliente_direccion: "",
@@ -205,16 +206,23 @@ export default function RegistrarVentaPage() {
     setTimeout(() => setToast((t) => ({ ...t, show: false })), 2000);
   };
 
-  const handleCambio = ({ metodo, efectivo, cambio }) => {
+  const handleCambio = ({ metodo, efectivo, cambio, montoTarjeta }) => {
     setVenta((prev) => {
       if (
         prev.metodo_pago === metodo &&
         Number(prev.efectivo) === Number(efectivo) &&
-        Number(prev.cambio) === Number(cambio)
+        Number(prev.cambio) === Number(cambio) &&
+        Number(prev.monto_tarjeta) === Number(montoTarjeta)
       ) {
         return prev;
       }
-      return { ...prev, metodo_pago: metodo, efectivo, cambio };
+      return {
+        ...prev,
+        metodo_pago: metodo,
+        efectivo,
+        cambio,
+        monto_tarjeta: montoTarjeta ?? 0,
+      };
     });
   };
 
@@ -359,6 +367,30 @@ export default function RegistrarVentaPage() {
         return;
       }
 
+      if (venta.metodo_pago === "mixto") {
+        const montoTarjeta = Number(venta.monto_tarjeta) || 0;
+        const efectivoRequerido = Math.max(
+          Number((total - montoTarjeta).toFixed(2)),
+          0
+        );
+        if (montoTarjeta > total) {
+          setFeedbackModal({
+            show: true,
+            success: false,
+            message: "⚠️ El monto con tarjeta no puede ser mayor al total.",
+          });
+          return;
+        }
+        if (Number(venta.efectivo) < efectivoRequerido) {
+          setFeedbackModal({
+            show: true,
+            success: false,
+            message: "⚠️ El efectivo recibido no cubre el monto restante en efectivo.",
+          });
+          return;
+        }
+      }
+
       const productosPayload = carrito.map((item) => ({
         producto_id: item.id,
         cantidad: item.cantidad,
@@ -376,6 +408,7 @@ export default function RegistrarVentaPage() {
         metodo_pago: venta.metodo_pago,
         efectivo: venta.efectivo,
         cambio: venta.cambio,
+        monto_tarjeta: venta.monto_tarjeta,
 
         es_entrega: esEntrega ? 1 : 0, // opcional si tu backend lo ignora, no pasa nada
       });
@@ -397,6 +430,7 @@ export default function RegistrarVentaPage() {
         metodoPago: venta.metodo_pago,
         efectivo: venta.efectivo,
         cambio: venta.cambio,
+        montoTarjeta: venta.monto_tarjeta,
       };
 
       // ✅ Aplica comprobante si hay dirección o si es entrega
@@ -427,6 +461,7 @@ export default function RegistrarVentaPage() {
         metodo_pago: "efectivo",
         efectivo: 0,
         cambio: 0,
+        monto_tarjeta: 0,
         cliente_nombre: "",
         cliente_rtn: "",
         cliente_direccion: "",

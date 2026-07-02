@@ -1,0 +1,10 @@
+{
+  "enabled": true,
+  "frequency": "daily",
+  "weekday": 0,
+  "dayOfMonth": 1,
+  "hour": 19,
+  "minute": 35,
+  "retentionCount": 7,
+  "destinationPath": "C:\\Users\\kevin\\Downloads\\Nueva carpeta (4)"
+}

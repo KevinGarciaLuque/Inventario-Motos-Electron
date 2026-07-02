@@ -52,6 +52,15 @@ const api = axios.create({
   // withCredentials: true,
 });
 
+// Adjunta el token guardado al iniciar sesión a cada petición saliente
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem("token");
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
 // Puedes agregar interceptores para manejar autenticación o errores globales:
 api.interceptors.response.use(
   (response) => response,

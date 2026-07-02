@@ -150,6 +150,7 @@ app.use("/api/cai", require("./routes/cai"));
 app.use("/api/ventas", require("./routes/ventas"));
 app.use("/api/facturas", require("./routes/facturas"));
 app.use("/api/clientes", require("./routes/clientes"));
+app.use("/api/backup", require("./routes/backup"));
 
 // === Carpeta pública para archivos subidos ===
 const uploadsPath = path.join(process.cwd(), "uploads");
@@ -159,9 +160,11 @@ if (!fs.existsSync(uploadsPath)) {
 }
 app.use("/uploads", express.static(uploadsPath));
 
+// === Programar backups automáticos según configuración guardada ===
+require("./backup").scheduleFromConfig();
+
 // === Iniciar el servidor ===
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`✅ Backend corriendo en http://127.0.0.1:${PORT}`);
 });
-
